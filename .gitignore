@@ -1,0 +1,18 @@
+node_modules/
+.DS_Store
+.env
+.env.local
+*.log
+dist/
+build/
+coverage/
+.vscode/
+.idea/
+backup/
+data/
+*.bak
+*.tmp
+
+# 导出的个人数据文件
+*backup*.json
+*export*.json
