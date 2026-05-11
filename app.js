@@ -5,6 +5,7 @@
   let fuelRecords = [];
   let tripRecords = [];
   let currentPage = 'home';
+  const dataService = window.dataService;
 
   // ==================== DOM Elements ====================
   const $ = (sel) => document.querySelector(sel);
@@ -38,6 +39,21 @@
   function fmtMoney(n) { return fmt(n, 2); }
   function fmtDist(n) { return fmt(n, 1); }
   function fmtFuel(n) { return fmt(n, 2); }
+  function fmtInt(n) { return fmt(n, 0); }
+
+  function icon(name) {
+    var icons = {
+      fuel: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v15"/><path d="M6 9h8"/><path d="M18 8l2 2v7a2 2 0 0 1-2 2h-2"/><path d="M20 10h-2"/></svg>',
+      route: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c2.5-3.5 5.5-3.5 8-7s5.5-3.5 6-7"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>',
+      cost: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M17 7.5c-.9-1-2.4-1.5-4.4-1.5-2.5 0-4.1 1.1-4.1 2.8 0 4.1 9 1.7 9 6.1 0 1.8-1.8 3.1-4.6 3.1-2.2 0-3.9-.7-4.9-1.9"/></svg>',
+      gauge: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a8 8 0 0 1 16 0"/><path d="M12 14l4-5"/><path d="M8 18h8"/></svg>',
+      trend: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 4 7-9"/><path d="M14 7h6v6"/></svg>',
+      export: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>',
+      import: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7 10l5 5 5-5"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>',
+      trash: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>'
+    };
+    return icons[name] || '';
+  }
 
   function today() {
     const d = new Date();
@@ -84,19 +100,13 @@
   }
 
   // ==================== Storage ====================
-  function loadData() {
-    try {
-      fuelRecords = JSON.parse(localStorage.getItem('fuelRecords') || '[]');
-      tripRecords = JSON.parse(localStorage.getItem('tripRecords') || '[]');
-    } catch (e) {
-      fuelRecords = [];
-      tripRecords = [];
-    }
+  function applyData(data) {
+    fuelRecords = data.fuelRecords;
+    tripRecords = data.tripRecords;
   }
 
-  function saveData() {
-    localStorage.setItem('fuelRecords', JSON.stringify(fuelRecords));
-    localStorage.setItem('tripRecords', JSON.stringify(tripRecords));
+  function loadData() {
+    applyData(dataService.loadData());
   }
 
   // ==================== Modal ====================
@@ -150,6 +160,61 @@
     return (totalLiters / totalDist) * 100;
   }
 
+  function getConsumptionTrendPoints() {
+    var sorted = [].concat(fuelRecords).sort(function (a, b) {
+      return new Date(a.date) - new Date(b.date);
+    });
+    var points = [];
+    for (var i = 1; i < sorted.length; i++) {
+      var prev = sorted[i - 1];
+      var curr = sorted[i];
+      var dist = Number(curr.odometer) - Number(prev.odometer);
+      var liters = Number(curr.liters) || 0;
+      if (dist > 0 && liters > 0) {
+        var consumption = (liters / dist) * 100;
+        points.push({
+          date: curr.date,
+          distance: dist,
+          liters: liters,
+          amount: Number(curr.amount) || 0,
+          price: Number(curr.pricePerLiter) || 0,
+          consumption: consumption,
+          costPerKm: dist > 0 ? (Number(curr.amount) || 0) / dist : 0
+        });
+      }
+    }
+    return points;
+  }
+
+  function getTrendSummary() {
+    var points = getConsumptionTrendPoints();
+    if (!points.length) {
+      return {
+        points: [],
+        avg: getAverageConsumption(),
+        latest: null,
+        min: null,
+        max: null,
+        delta: null,
+        totalDistance: 0,
+        totalAmount: 0
+      };
+    }
+    var values = points.map(function (p) { return p.consumption; });
+    var latest = points[points.length - 1];
+    var prev = points.length > 1 ? points[points.length - 2] : null;
+    return {
+      points: points,
+      avg: values.reduce(function (s, v) { return s + v; }, 0) / values.length,
+      latest: latest,
+      min: Math.min.apply(null, values),
+      max: Math.max.apply(null, values),
+      delta: prev ? latest.consumption - prev.consumption : null,
+      totalDistance: points.reduce(function (s, p) { return s + p.distance; }, 0),
+      totalAmount: points.reduce(function (s, p) { return s + p.amount; }, 0)
+    };
+  }
+
   function getLatestFuelPrice() {
     if (fuelRecords.length === 0) return null;
     var sorted = sortByDateDesc(fuelRecords);
@@ -194,11 +259,76 @@
     return sortByDateDesc(tripRecords)[0];
   }
 
+  function getFuelConfidence() {
+    var fullCount = fuelRecords.filter(function (r) { return r.fullTank; }).length;
+    if (fuelRecords.length >= 4 && fullCount >= 2) return { label: '数据可信', detail: fullCount + ' 次满箱校准', pct: 88 };
+    if (fuelRecords.length >= 2) return { label: '持续学习', detail: '建议补充满箱标记', pct: 58 };
+    return { label: '等待校准', detail: '记录两次满箱后更准确', pct: 24 };
+  }
+
+  function getEfficiencyGrade(avg) {
+    if (avg == null) return { grade: '—', label: '等待评级', tone: 'muted' };
+    if (avg <= 6) return { grade: 'S', label: '极省油', tone: 'mint' };
+    if (avg <= 7.5) return { grade: 'A', label: '优秀', tone: 'cyan' };
+    if (avg <= 9) return { grade: 'B', label: '均衡', tone: 'blue' };
+    if (avg <= 11) return { grade: 'C', label: '偏高', tone: 'amber' };
+    return { grade: 'D', label: '需关注', tone: 'rose' };
+  }
+
+  function renderTrendChart(summary) {
+    if (!summary.points.length) {
+      return '<div class="trend-empty"><div class="trend-empty-grid"></div><strong>油耗趋势等待生成</strong><span>至少添加两次带里程和升数的加油记录后，将显示真实油耗曲线、均线、最高/最低和成本变化。</span></div>';
+    }
+
+    var points = summary.points.slice(-12);
+    var values = points.map(function (p) { return p.consumption; });
+    var min = Math.min.apply(null, values.concat([summary.avg])) - 0.6;
+    var max = Math.max.apply(null, values.concat([summary.avg])) + 0.6;
+    if (max - min < 2) { max += 1; min -= 1; }
+    var w = 320, h = 168, left = 28, right = 16, top = 18, bottom = 26;
+    var innerW = w - left - right;
+    var innerH = h - top - bottom;
+    function x(i) { return left + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1)); }
+    function y(v) { return top + innerH - ((v - min) / (max - min)) * innerH; }
+    var line = points.map(function (p, i) { return (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(p.consumption).toFixed(1); }).join(' ');
+    var area = line + ' L ' + x(points.length - 1).toFixed(1) + ' ' + (top + innerH).toFixed(1) + ' L ' + x(0).toFixed(1) + ' ' + (top + innerH).toFixed(1) + ' Z';
+    var avgY = y(summary.avg).toFixed(1);
+    var last = points[points.length - 1];
+    var lastX = x(points.length - 1).toFixed(1);
+    var lastY = y(last.consumption).toFixed(1);
+    var maxLabel = Math.ceil(max);
+    var minLabel = Math.floor(min);
+
+    var dots = points.map(function (p, i) {
+      return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.consumption).toFixed(1) + '" r="' + (i === points.length - 1 ? 4.2 : 2.8) + '" />';
+    }).join('');
+
+    return '<div class="trend-graph" role="img" aria-label="油耗变化趋势图，最近一次 ' + fmtFuel(last.consumption) + ' 升每百公里，平均 ' + fmtFuel(summary.avg) + ' 升每百公里">' +
+      '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+      '<defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(101,228,255,0.34)"/><stop offset="100%" stop-color="rgba(101,228,255,0.02)"/></linearGradient></defs>' +
+      '<line class="grid-line" x1="' + left + '" y1="' + top + '" x2="' + (w - right) + '" y2="' + top + '"/>' +
+      '<line class="grid-line" x1="' + left + '" y1="' + (top + innerH / 2).toFixed(1) + '" x2="' + (w - right) + '" y2="' + (top + innerH / 2).toFixed(1) + '"/>' +
+      '<line class="grid-line" x1="' + left + '" y1="' + (top + innerH) + '" x2="' + (w - right) + '" y2="' + (top + innerH) + '"/>' +
+      '<line class="avg-line" x1="' + left + '" y1="' + avgY + '" x2="' + (w - right) + '" y2="' + avgY + '"/>' +
+      '<path class="trend-area" d="' + area + '"/>' +
+      '<path class="trend-line" d="' + line + '"/>' +
+      '<g class="trend-dots">' + dots + '</g>' +
+      '<circle class="trend-last-dot" cx="' + lastX + '" cy="' + lastY + '" r="7"/>' +
+      '<text class="axis-label" x="2" y="' + (top + 4) + '">' + maxLabel + '</text>' +
+      '<text class="axis-label" x="2" y="' + (top + innerH + 3) + '">' + minLabel + '</text>' +
+      '<text class="avg-label" x="' + (w - right - 46) + '" y="' + (Number(avgY) - 6) + '">均 ' + fmtFuel(summary.avg) + '</text>' +
+      '</svg>' +
+      '<div class="trend-axis"><span>' + points[0].date.slice(5) + '</span><span>' + last.date.slice(5) + '</span></div>' +
+      '</div>';
+  }
+
   // ==================== Data Operations ====================
-  function addFuelRecord(record) { fuelRecords.push(record); saveData(); }
-  function deleteFuelRecord(id) { fuelRecords = fuelRecords.filter(function (r) { return r.id !== id; }); saveData(); }
-  function addTripRecord(record) { tripRecords.push(record); saveData(); }
-  function deleteTripRecord(id) { tripRecords = tripRecords.filter(function (r) { return r.id !== id; }); saveData(); }
+  function addFuelRecord(record) { applyData(dataService.addFuelRecord(record)); }
+  function updateFuelRecord(id, record) { applyData(dataService.updateFuelRecord(id, record)); }
+  function deleteFuelRecord(id) { applyData(dataService.deleteFuelRecord(id)); }
+  function addTripRecord(record) { applyData(dataService.addTripRecord(record)); }
+  function updateTripRecord(id, record) { applyData(dataService.updateTripRecord(id, record)); }
+  function deleteTripRecord(id) { applyData(dataService.deleteTripRecord(id)); }
 
   // ==================== Render: Home ====================
   function renderHome() {
@@ -213,44 +343,58 @@
 
     var h = '<div class="page active" id="page-home">';
 
-    // Hero dashboard
-    h += '<div class="hero-dashboard">';
-    h += '<div class="hero-label">PER KM COST · 每公里成本</div>';
-    if (costPerKm != null) {
-      h += '<div class="hero-value">¥' + fmtMoney(costPerKm) + '</div>';
-      h += '<div class="hero-unit">元 / km</div>';
-      h += '<div class="hero-aux">';
-      h += '<div class="hero-aux-item"><div class="hero-aux-value">' + (avgConsumption != null ? fmtFuel(avgConsumption) + ' L' : '—') + '</div><div class="hero-aux-label">百公里油耗</div></div>';
-      h += '<div class="hero-separator"></div>';
-      h += '<div class="hero-aux-item"><div class="hero-aux-value">¥' + (latestPrice != null ? fmtMoney(latestPrice) : '—') + '</div><div class="hero-aux-label">最近油价 /L</div></div>';
-      h += '</div>';
-    } else {
-      h += '<div class="hero-no-data">等待更多加油数据<br><span style="font-size:0.7rem;color:#64748b">至少需要两次加满油的记录</span></div>';
-    }
-    h += '</div>';
+    var totalStats = getTotalStats();
+    var confidence = getFuelConfidence();
+    var trend = getTrendSummary();
+    var effectiveAvg = avgConsumption != null ? avgConsumption : trend.avg;
+    var effectiveCostPerKm = costPerKm != null ? costPerKm : (effectiveAvg != null && latestPrice != null ? (effectiveAvg * latestPrice) / 100 : null);
+    var grade = getEfficiencyGrade(effectiveAvg);
+    var deltaLabel = trend.delta == null ? '暂无对比' : (trend.delta > 0 ? '+' : '') + fmtFuel(trend.delta) + ' L/100km';
 
-    // Quick actions
+    h += '<section class="vehicle-panel">';
+    h += '<div><div class="vehicle-name">黑鹰</div><div class="vehicle-model">维特拉 2016款 1.4T 自动四驱领先型</div></div>';
+    h += '<div class="vehicle-badge">PWA</div>';
+    h += '</section>';
+
+    h += '<section class="hero-dashboard liquid-card" aria-label="核心油耗仪表盘">';
+    h += '<div class="hero-topline"><span>最新油耗</span><span>能耗评级</span></div>';
+    h += '<div class="hero-main-row"><div>';
+    h += '<div class="hero-value">' + (effectiveAvg != null ? fmtFuel(effectiveAvg) : '--') + '</div>';
+    h += '<div class="hero-unit">升 / 百公里</div>';
+    h += '</div><div class="grade-cluster grade-' + grade.tone + '"><span>S</span><span>A</span><span>B</span><strong>' + grade.grade + '</strong><span>D</span><small>' + grade.label + '</small></div></div>';
+    h += '<div class="confidence-strip"><div><strong>' + confidence.label + '</strong><span>' + confidence.detail + '</span></div><div class="confidence-meter" aria-hidden="true"><i style="width:' + confidence.pct + '%"></i></div></div>';
+    h += '</section>';
+
     h += '<div class="quick-actions">';
-    h += '<button class="btn-action" onclick="window._showFuelForm()"><span class="action-icon">⛽</span><span>+ 加油记录</span></button>';
-    h += '<button class="btn-action trip" onclick="window._showTripForm()"><span class="action-icon">🛣️</span><span>+ 行程记录</span></button>';
+    h += '<button class="btn-action" onclick="window._showFuelForm()" aria-label="新增加油记录">' + icon('fuel') + '<span><strong>加油记录</strong><small>金额 / 升数 / 油价</small></span></button>';
+    h += '<button class="btn-action trip" onclick="window._showTripForm()" aria-label="新增行程记录">' + icon('route') + '<span><strong>行程记录</strong><small>起止里程自动计算</small></span></button>';
     h += '</div>';
 
-    // Summary grid
     h += '<div class="summary-grid">';
-    h += '<div class="card summary-card"><div class="card-title">本月油费</div><div class="card-value orange">¥' + fmtMoney(monthlyFuel.totalAmount) + '</div></div>';
-    h += '<div class="card summary-card"><div class="card-title">本月行驶</div><div class="card-value blue">' + fmtDist(monthlyDist) + '<span class="card-unit">km</span></div></div>';
-    h += '<div class="card summary-card"><div class="card-title">平均油耗</div><div class="card-value' + (avgConsumption != null ? ' cyan' : '') + '">' + (avgConsumption != null ? fmtFuel(avgConsumption) + '<span class="card-unit">L/100km</span>' : '—') + '</div></div>';
-    h += '<div class="card summary-card"><div class="card-title">每公里成本</div><div class="card-value green">' + (costPerKm != null ? '¥' + fmtMoney(costPerKm) : '—') + '</div></div>';
+    h += '<div class="card summary-card accent-cyan"><div class="card-title">平均油耗</div><div class="card-value">' + (effectiveAvg != null ? fmtFuel(effectiveAvg) : '—') + '</div><div class="card-unit">升/百公里</div></div>';
+    h += '<div class="card summary-card accent-blue"><div class="card-title">平均行程</div><div class="card-value">' + (monthlyDist > 0 ? fmtInt(monthlyDist / Math.max(1, progress.day)) : '—') + '</div><div class="card-unit">公里/天</div></div>';
+    h += '<div class="card summary-card accent-green"><div class="card-title">平均油费</div><div class="card-value">' + (effectiveCostPerKm != null ? fmtMoney(effectiveCostPerKm) : '—') + '</div><div class="card-unit">元/公里</div></div>';
+    h += '<div class="card summary-card accent-blue"><div class="card-title">累计行程</div><div class="card-value">' + fmtInt(totalStats.totalDistance) + '</div><div class="card-unit">公里</div></div>';
+    h += '<div class="card summary-card accent-orange"><div class="card-title">累计油费</div><div class="card-value">' + fmtMoney(totalStats.totalAmount) + '</div><div class="card-unit">元</div></div>';
+    h += '<div class="card summary-card accent-green"><div class="card-title">本月油量</div><div class="card-value">' + fmtFuel(monthlyFuel.totalLiters) + '</div><div class="card-unit">升</div></div>';
     h += '</div>';
 
-    // Month progress
+    h += '<section class="trend-card liquid-card">';
+    h += '<div class="section-head"><div><span></span><strong>油耗变化趋势</strong></div><button type="button">全部</button></div>';
+    h += renderTrendChart(trend);
+    h += '<div class="trend-insights">';
+    h += '<div><span>最近一次</span><strong>' + (trend.latest ? fmtFuel(trend.latest.consumption) : '—') + '</strong><small>L/100km</small></div>';
+    h += '<div><span>较上次</span><strong>' + deltaLabel + '</strong><small>变化</small></div>';
+    h += '<div><span>区间范围</span><strong>' + (trend.min != null ? fmtFuel(trend.min) + '-' + fmtFuel(trend.max) : '—') + '</strong><small>L/100km</small></div>';
+    h += '</div>';
+    h += '</section>';
+
     h += '<div class="progress-card">';
     h += '<div class="progress-header"><span class="progress-label">' + monthLabel() + ' 进度</span><span class="progress-days">' + progress.pct + '%</span></div>';
     h += '<div class="progress-bar-track"><div class="progress-bar-fill" style="width:' + progress.pct + '%"></div></div>';
     h += '<div class="progress-info"><span>已过 ' + progress.day + ' 天</span><span>剩余 ' + progress.remaining + ' 天</span><span>本月油费 ¥' + fmtMoney(monthlyFuel.totalAmount) + '</span></div>';
     h += '</div>';
 
-    // Latest records
     h += '<div class="latest-section-title">最近记录</div>';
 
     h += '<div class="latest-record-card fuel">';
@@ -284,7 +428,7 @@
     h += '<div class="page-title"><span class="dot"></span> Fuel Refill Log · 能源补给记录</div>';
 
     if (records.length === 0) {
-      h += '<div class="empty-state"><div class="empty-state-icon">⛽</div><p>还没有加油记录</p><button class="btn btn-primary btn-sm" onclick="window._showFuelForm()">+ 新增加油记录</button></div>';
+      h += '<div class="empty-state"><div class="empty-state-icon">' + icon('fuel') + '</div><p>还没有加油记录</p><button class="btn btn-primary btn-sm" onclick="window._showFuelForm()">新增加油记录</button></div>';
     } else {
       h += '<div class="record-list">';
       records.forEach(function (r) { h += renderFuelItem(r); });
@@ -318,7 +462,7 @@
 
   function showFuelForm(editRecord) {
     var r = editRecord || {};
-    var h = '<div class="modal-header"><h2>⛽ ' + (editRecord ? '编辑加油记录' : '新增加油记录') + '</h2><button class="modal-close" onclick="window._closeModal()">✕</button></div>';
+    var h = '<div class="modal-header"><h2>' + icon('fuel') + (editRecord ? '编辑加油记录' : '新增加油记录') + '</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
     h += '<div class="modal-body">';
     h += '<div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="fuel-date" value="' + (r.date || today()) + '"></div>';
     h += '<div class="form-group"><label class="form-label">当前总里程 (km)</label><input type="number" class="form-input" id="fuel-odo" placeholder="例如 35620" step="0.1" min="0" value="' + (r.odometer || '') + '" inputmode="decimal"></div>';
@@ -359,7 +503,7 @@
     if (isNaN(odo) || odo < 0) { alert('请输入有效的里程数'); return; }
     if (amt === 0 && lit === 0) { alert('请至少填写金额或升数'); return; }
     if (editId) {
-      fuelRecords = fuelRecords.map(function (r) { return r.id === editId ? { id: r.id, date: date, odometer: odo, amount: amt, liters: lit, pricePerLiter: prc, fullTank: full, note: note } : r; });
+      updateFuelRecord(editId, { id: editId, date: date, odometer: odo, amount: amt, liters: lit, pricePerLiter: prc, fullTank: full, note: note });
     } else {
       addFuelRecord({ id: genId(), date: date, odometer: odo, amount: amt, liters: lit, pricePerLiter: prc, fullTank: full, note: note });
     }
@@ -373,7 +517,7 @@
     h += '<div class="page-title"><span class="dot"></span> Trip Energy Log · 行程能耗记录</div>';
 
     if (records.length === 0) {
-      h += '<div class="empty-state"><div class="empty-state-icon">🛣️</div><p>还没有行程记录</p><button class="btn btn-primary btn-sm" onclick="window._showTripForm()">+ 新增行程记录</button></div>';
+      h += '<div class="empty-state"><div class="empty-state-icon">' + icon('route') + '</div><p>还没有行程记录</p><button class="btn btn-primary btn-sm" onclick="window._showTripForm()">新增行程记录</button></div>';
     } else {
       h += '<div class="record-list">';
       records.forEach(function (r) { h += renderTripItem(r); });
@@ -409,7 +553,7 @@
   function showTripForm(editRecord) {
     var r = editRecord || {};
     var cpk = getCostPerKm();
-    var h = '<div class="modal-header"><h2>🛣️ ' + (editRecord ? '编辑行程记录' : '新增行程记录') + '</h2><button class="modal-close" onclick="window._closeModal()">✕</button></div>';
+    var h = '<div class="modal-header"><h2>' + icon('route') + (editRecord ? '编辑行程记录' : '新增行程记录') + '</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
     h += '<div class="modal-body">';
     h += '<div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="trip-date" value="' + (r.date || today()) + '"></div>';
     h += '<div class="form-group"><label class="form-label">行程名称</label><input type="text" class="form-input" id="trip-name" placeholder="例如：去公司、周末出游" value="' + (r.name || '') + '"></div>';
@@ -450,7 +594,7 @@
     if (!date) { alert('请选择日期'); return; }
     if (dist <= 0) { alert('行驶距离必须大于 0，请填写起止里程'); return; }
     if (editId) {
-      tripRecords = tripRecords.map(function (r) { return r.id === editId ? { id: r.id, date: date, name: name, startOdometer: startOdo, endOdometer: endOdo, distance: dist, purpose: purpose, estimatedCost: cost, note: note } : r; });
+      updateTripRecord(editId, { id: editId, date: date, name: name, startOdometer: startOdo, endOdometer: endOdo, distance: dist, purpose: purpose, estimatedCost: cost, note: note });
     } else {
       addTripRecord({ id: genId(), date: date, name: name, startOdometer: startOdo, endOdometer: endOdo, distance: dist, purpose: purpose, estimatedCost: cost, note: note });
     }
@@ -511,13 +655,13 @@
     h += '</div>';
 
     h += '<div class="settings-section"><h3>数据备份</h3>';
-    h += '<button class="btn btn-outline btn-block" onclick="window._exportData()" style="margin-bottom:8px">📤 导出全部数据 (JSON)</button>';
-    h += '<button class="btn btn-outline btn-block" onclick="window._importData()">📥 从 JSON 文件导入</button>';
+    h += '<button class="btn btn-outline btn-block" onclick="window._exportData()" style="margin-bottom:8px">' + icon('export') + '导出全部数据 (JSON)</button>';
+    h += '<button class="btn btn-outline btn-block" onclick="window._importData()">' + icon('import') + '从 JSON 文件导入</button>';
     h += '<input type="file" id="import-file-input" accept=".json" style="display:none" onchange="window._handleImport(event)">';
     h += '</div>';
 
     h += '<div class="settings-section"><h3 style="color:var(--accent-rose)">危险操作</h3>';
-    h += '<button class="btn btn-danger btn-block" onclick="window._clearAllData()">🗑 清空全部数据</button>';
+    h += '<button class="btn btn-danger btn-block" onclick="window._clearAllData()">' + icon('trash') + '清空全部数据</button>';
     h += '</div>';
 
     h += '<p class="settings-about">Fuel Intelligence Dashboard v2.0<br>数据保存在浏览器本地存储 · 离线可用<br>清除浏览器数据会导致记录丢失，请定期导出 JSON 备份</p>';
@@ -527,14 +671,7 @@
   }
 
   window._exportData = function () {
-    var data = { version: 1, exportedAt: new Date().toISOString(), fuelRecords: fuelRecords, tripRecords: tripRecords };
-    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = '油耗记录备份_' + today() + '.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    dataService.downloadExport('油耗记录备份_' + today() + '.json');
   };
 
   window._importData = function () { var inp = $('#import-file-input'); if (inp) inp.click(); };
@@ -542,29 +679,23 @@
   window._handleImport = function (event) {
     var file = event.target.files[0];
     if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function (e) {
-      try {
-        var data = JSON.parse(e.target.result);
-        if (!data.fuelRecords || !data.tripRecords) { alert('无效的备份文件格式'); return; }
+    dataService.readImportFile(file)
+      .then(function (data) {
         showConfirm('即将导入 ' + data.fuelRecords.length + ' 条加油记录和 ' + data.tripRecords.length + ' 条行程记录。\n\n⚠ 当前数据将被覆盖，是否继续？', function () {
-          fuelRecords = data.fuelRecords;
-          tripRecords = data.tripRecords;
-          saveData();
+          applyData(dataService.importData(data));
           alert('导入成功！');
           refreshCurrentPage();
         });
-      } catch (err) { alert('文件解析失败，请检查文件格式'); }
-    };
-    reader.readAsText(file);
+      })
+      .catch(function () {
+        alert('文件解析失败，请检查文件格式');
+      });
     event.target.value = '';
   };
 
   window._clearAllData = function () {
     showConfirm('⚠ 确定要清空全部数据吗？\n\n此操作不可撤销，建议先导出备份。', function () {
-      fuelRecords = [];
-      tripRecords = [];
-      saveData();
+      applyData(dataService.clearAllData());
       navigateTo('home');
     });
   };
