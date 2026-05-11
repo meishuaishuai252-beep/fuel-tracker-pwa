@@ -1,11 +1,11 @@
 {
   "name": "油耗记录助手",
   "short_name": "油耗记录",
-  "description": "记录和管理车辆油耗数据",
+  "description": "车辆能耗数据中控台 · Fuel Intelligence Dashboard",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f0f2f5",
-  "theme_color": "#1a73e8",
+  "background_color": "#050816",
+  "theme_color": "#050816",
   "orientation": "portrait-primary",
   "icons": [
     {
