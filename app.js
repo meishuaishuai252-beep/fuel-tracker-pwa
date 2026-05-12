@@ -67,14 +67,24 @@
   }
 
   // ==================== Avatar ====================
-  function getUserInitial() {
-    return 'U';
+  function getUserInitial(user) {
+    var source = '';
+    user = user || window.currentUser || {};
+    source = user.displayName || user.username || user.name || user.email || localStorage.getItem('displayName') || localStorage.getItem('username') || localStorage.getItem('email') || '';
+    source = String(source).trim();
+    if (!source) return 'U';
+    if (source.indexOf('@') > 0) source = source.split('@')[0];
+    return source.charAt(0).toUpperCase();
   }
 
   function updateAvatar() {
     if (headerAvatar) {
       headerAvatar.textContent = getUserInitial();
     }
+  }
+
+  function userAvatarButton() {
+    return '<button class="user-avatar-action" type="button" aria-label="用户入口">' + getUserInitial() + '</button>';
   }
 
   // ==================== Utilities ====================
@@ -337,71 +347,59 @@
     var monthlyDist = getMonthlyDistance();
     var latestFuel = getLatestFuelRecord();
     var latestTrip = getLatestTripRecord();
-    var progress = getMonthProgress();
     var totals = getTotalStats();
     var trend = getTrendSummary();
     var confidence = getFuelConfidence();
+    var effectiveAvg = avgConsumption != null ? avgConsumption : trend.avg;
+    var effectiveCost = costPerKm != null ? costPerKm : (effectiveAvg != null && latestPrice != null ? (effectiveAvg * latestPrice) / 100 : null);
 
     var h = '<div class="page active" id="page-home">';
-    h += '<div class="page-head"><h2>概览</h2><div class="subtitle">Fuel Overview</div></div>';
+    h += '<div class="page-head home-head"><div><h2>概览</h2><div class="subtitle">Fuel Overview</div></div>' + userAvatarButton() + '</div>';
 
-    // Hero stat card
-    h += '<div class="hero-dashboard">';
-    h += '<div class="hero-label">本月油费</div>';
-    h += '<div class="hero-value">¥' + fmtMoney(monthlyFuel.totalAmount) + '</div>';
-    h += '<div class="hero-unit">' + monthLabel() + '</div>';
-    h += '<div class="hero-sub-stats">';
-    h += '<div class="hero-sub-stat"><div class="val">' + (avgConsumption != null ? fmtFuel(avgConsumption) : '—') + '</div><div class="lbl">平均油耗 L/100km</div></div>';
-    h += '<div class="hero-sub-stat"><div class="val">' + (costPerKm != null ? '¥' + fmtMoney(costPerKm) : '—') + '</div><div class="lbl">每公里成本</div></div>';
-    h += '</div></div>';
+    h += '<section class="ios-hero-card">';
+    h += '<div class="hero-card-top"><div><span class="hero-kicker">本月油费</span><strong>¥' + fmtMoney(monthlyFuel.totalAmount) + '</strong><small>' + monthLabel() + ' · ' + fuelRecords.filter(function (r) { return isCurrentMonth(r.date); }).length + ' 笔记录</small></div><div class="hero-pump">' + icon('fuel') + '</div></div>';
+    h += '<div class="hero-metrics">';
+    h += '<div><span>平均油耗</span><strong>' + (effectiveAvg != null ? fmtFuel(effectiveAvg) : '—') + '</strong><small>L/100km</small></div>';
+    h += '<div><span>每公里成本</span><strong>' + (effectiveCost != null ? '¥' + fmtMoney(effectiveCost) : '—') + '</strong><small>/km</small></div>';
+    h += '<div><span>本月油量</span><strong>' + fmtFuel(monthlyFuel.totalLiters) + '</strong><small>L</small></div>';
+    h += '</div></section>';
 
-    // Quick actions
     h += '<div class="quick-actions">';
-    h += '<button class="btn-action" onclick="window._showFuelForm()"><span class="action-icon">' + icon('fuel') + '</span>记录加油</button>';
-    h += '<button class="btn-action" onclick="window._showTripForm()"><span class="action-icon">' + icon('route') + '</span>记录行程</button>';
+    h += '<button class="btn-action" onclick="window._showFuelForm()"><span class="action-icon action-fuel">' + icon('fuel') + '</span><span>记录加油</span></button>';
+    h += '<button class="btn-action" onclick="window._showTripForm()"><span class="action-icon action-trip">' + icon('route') + '</span><span>记录行程</span></button>';
     h += '</div>';
 
-    // 4 small cards in 2x2
-    h += '<div class="summary-grid">';
-    h += '<div class="card summary-card"><div class="card-title">本月行驶</div><div class="card-value">' + fmtDist(monthlyDist) + '</div><div class="card-unit">km</div></div>';
-    h += '<div class="card summary-card"><div class="card-title">最近油价</div><div class="card-value">' + (latestPrice != null ? '¥' + fmtMoney(latestPrice) : '—') + '</div></div>';
-    h += '<div class="card summary-card"><div class="card-title">累计行驶</div><div class="card-value">' + fmtInt(totals.totalDistance) + '</div><div class="card-unit">km</div></div>';
-    h += '<div class="card summary-card"><div class="card-title">累计油费</div><div class="card-value">¥' + fmtMoney(totals.totalAmount) + '</div></div>';
+    h += '<div class="ios-card-grid">';
+    h += '<div class="ios-mini-card"><span class="mini-icon blue">' + icon('gauge') + '</span><div><small>本月行驶</small><strong>' + fmtDist(monthlyDist) + '</strong><em>km</em></div></div>';
+    h += '<div class="ios-mini-card"><span class="mini-icon green">' + icon('fuel') + '</span><div><small>最近油价</small><strong>' + (latestPrice != null ? '¥' + fmtMoney(latestPrice) : '—') + '</strong><em>/L</em></div></div>';
+    h += '<div class="ios-mini-card"><span class="mini-icon orange">' + icon('cost') + '</span><div><small>累计油费</small><strong>¥' + fmtMoney(totals.totalAmount) + '</strong><em>元</em></div></div>';
+    h += '<div class="ios-mini-card"><span class="mini-icon purple">' + icon('route') + '</span><div><small>最近行程</small><strong>' + (latestTrip ? fmtDist(latestTrip.distance) : '—') + '</strong><em>km</em></div></div>';
     h += '</div>';
 
-    // Month progress
-    h += '<div class="progress-card">';
-    h += '<div class="progress-header"><span class="progress-label">' + monthLabel() + ' 进度</span><span class="progress-pct">' + progress.pct + '%</span></div>';
-    h += '<div class="progress-bar-track"><div class="progress-bar-fill" style="width:' + progress.pct + '%"></div></div>';
-    h += '<div class="progress-info"><span>已过 ' + progress.day + ' 天</span><span>剩余 ' + progress.remaining + ' 天</span><span>本月油费 ¥' + fmtMoney(monthlyFuel.totalAmount) + '</span></div>';
-    h += '</div>';
-
-    // Trend
-    h += '<div class="trend-card"><div class="section-head"><strong>油耗变化趋势</strong></div>';
+    h += '<section class="trend-card"><div class="section-head"><strong>油耗变化趋势</strong><span>' + confidence.label + '</span></div>';
     h += renderTrendChart(trend);
     h += '<div class="trend-insights">';
     h += '<div><span>最近一次</span><strong>' + (trend.latest ? fmtFuel(trend.latest.consumption) : '—') + '</strong><small>L/100km</small></div>';
     h += '<div><span>平均</span><strong>' + (trend.avg ? fmtFuel(trend.avg) : '—') + '</strong><small>L/100km</small></div>';
     h += '<div><span>置信度</span><strong>' + confidence.label + '</strong><small>' + confidence.detail + '</small></div>';
-    h += '</div></div>';
+    h += '</div></section>';
 
-    // Latest records
-    h += '<div class="latest-section-title">最近记录</div>';
-    h += '<div class="latest-record-card fuel"><div class="latest-info"><div class="latest-label">最近加油</div>';
+    h += '<div class="ios-list-card">';
+    h += '<div class="ios-list-row"><span class="list-icon fuel">' + icon('fuel') + '</span><div class="latest-info"><div class="latest-label">最近一次加油</div>';
     if (latestFuel) {
-      h += '<div class="latest-detail">' + latestFuel.date + ' · ' + fmtDist(latestFuel.odometer) + ' km' + (latestFuel.note ? ' · ' + escHtml(latestFuel.note) : '') + '</div></div><div class="latest-value">¥' + fmtMoney(latestFuel.amount) + '</div>';
+      h += '<div class="latest-detail">' + latestFuel.date + ' · ' + fmtFuel(latestFuel.liters) + ' L · ¥' + fmtMoney(latestFuel.amount) + '</div></div><div class="latest-value">¥' + fmtMoney(latestFuel.amount) + '</div><span class="chevron">›</span>';
     } else {
-      h += '<div class="latest-detail">暂无记录</div></div><div class="latest-value no-data">—</div>';
+      h += '<div class="latest-detail">暂无记录</div></div><div class="latest-value no-data">—</div><span class="chevron">›</span>';
     }
     h += '</div>';
 
-    h += '<div class="latest-record-card trip"><div class="latest-info"><div class="latest-label">最近行程</div>';
+    h += '<div class="ios-list-row"><span class="list-icon trip">' + icon('route') + '</span><div class="latest-info"><div class="latest-label">最近一次行程</div>';
     if (latestTrip) {
       h += '<div class="latest-detail">' + latestTrip.date + ' · ' + (latestTrip.name || latestTrip.purpose || '未命名') + '</div></div><div class="latest-value">' + fmtDist(latestTrip.distance) + ' km</div>';
     } else {
       h += '<div class="latest-detail">暂无记录</div></div><div class="latest-value no-data">—</div>';
     }
-    h += '</div>';
+    h += '<span class="chevron">›</span></div>';
 
     h += '</div>';
     mainContent.innerHTML = h;
@@ -721,7 +719,7 @@
     if (navItem) { navigateTo(navItem.dataset.page); return; }
 
     // Avatar
-    if (e.target.closest('#header-avatar')) {
+    if (e.target.closest('#header-avatar') || e.target.closest('.user-avatar-action')) {
       navigateTo('settings');
       return;
     }
