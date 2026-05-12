@@ -3,60 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#050816">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="油耗记录">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <title>油耗记录助手 · Fuel Intelligence</title>
+  <title>油耗记录助手</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="ambient-layer" aria-hidden="true">
-    <div class="light-field light-field-1"></div>
-    <div class="light-field light-field-2"></div>
-    <div class="liquid-mesh"></div>
-    <div class="scan-grid"></div>
-  </div>
-
   <div id="app">
     <header class="app-header">
       <div class="header-inner">
-        <span class="header-logo" aria-hidden="true"></span>
-        <h1 id="header-title">油耗记录助手</h1>
+        <h1 id="header-title">概览</h1>
       </div>
-      <div class="header-status" id="header-status"></div>
+      <button class="header-avatar" id="header-avatar" aria-label="用户">U</button>
     </header>
 
     <main id="main-content" class="app-content"></main>
 
     <nav class="bottom-nav">
+      <div class="nav-pill-bg"></div>
       <button class="nav-item active" data-page="home">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
           <polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
         <span class="nav-label">首页</span>
       </button>
       <button class="nav-item" data-page="fuel">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
-          <path d="M15 3v4a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V3"/>
-          <line x1="8" y1="14" x2="16" y2="14"/>
-          <line x1="8" y1="18" x2="14" y2="18"/>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 20V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v15"/>
+          <path d="M6 9h8"/>
+          <path d="M18 8l2 2v7a2 2 0 0 1-2 2h-2"/>
+          <path d="M20 10h-2"/>
         </svg>
         <span class="nav-label">加油</span>
       </button>
       <button class="nav-item" data-page="trip">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 19c2.5-3.5 5.5-3.5 8-7s5.5-3.5 6-7"/>
+          <circle cx="5" cy="19" r="2"/>
+          <circle cx="19" cy="5" r="2"/>
         </svg>
         <span class="nav-label">行程</span>
       </button>
       <button class="nav-item" data-page="stats">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="20" x2="18" y2="10"/>
           <line x1="12" y1="20" x2="12" y2="4"/>
           <line x1="6" y1="20" x2="6" y2="14"/>
@@ -64,7 +59,7 @@
         <span class="nav-label">统计</span>
       </button>
       <button class="nav-item" data-page="settings">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>

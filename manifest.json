@@ -4,8 +4,8 @@
   "description": "车辆能耗数据中控台 · Fuel Intelligence Dashboard",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#050816",
-  "theme_color": "#050816",
+  "background_color": "#f5f5f7",
+  "theme_color": "#f5f5f7",
   "orientation": "portrait-primary",
   "icons": [
     {
