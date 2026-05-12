@@ -1,8 +1,11 @@
-const CACHE_NAME = 'fuel-tracker-v4';
+const CACHE_NAME = 'fuel-tracker-v5';
 const ASSETS = [
   './',
   './index.html',
+  './official.html',
   './styles.css',
+  './official.css',
+  './official.js',
   './dataService.js',
   './app.js',
   './manifest.json',

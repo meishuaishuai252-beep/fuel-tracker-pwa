@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f5f7">
+  <title>油耗记录助手 - 官网视觉第一版</title>
+  <meta name="description" content="油耗记录助手是一款车辆能耗记录 PWA，帮助你记录加油、行程、油耗趋势和用车成本。">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="official.css">
+</head>
+<body>
+  <header class="site-nav" aria-label="官网导航">
+    <a class="brand" href="#top" aria-label="油耗记录助手首页">
+      <img src="icons/icon-192.png" alt="" width="28" height="28">
+      <span>油耗记录助手</span>
+    </a>
+    <nav class="nav-links" aria-label="页面章节">
+      <a href="#experience">体验</a>
+      <a href="#insight">洞察</a>
+      <a href="#privacy">隐私</a>
+      <a href="index.html" class="nav-cta">打开应用</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero-section" aria-labelledby="hero-title">
+      <div class="hero-copy reveal">
+        <p class="eyebrow">Fuel intelligence, made calm.</p>
+        <h1 id="hero-title">油耗记录助手</h1>
+        <p class="hero-subtitle">把每一次加油、每一段行程和每一笔用车成本，整理成清晰、安静、可信赖的车辆能耗视图。</p>
+        <div class="hero-actions">
+          <a class="primary-action" href="index.html">立即体验</a>
+          <a class="secondary-action" href="#experience">查看设计</a>
+        </div>
+      </div>
+
+      <div class="product-stage reveal" aria-label="产品界面预览">
+        <div class="desktop-frame">
+          <div class="frame-bar">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="desktop-ui">
+            <div class="ui-rail">
+              <img src="icons/icon-192.png" alt="" width="42" height="42">
+              <span class="rail-active"></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="ui-main">
+              <div class="ui-topline">
+                <span>2026 年 5 月</span>
+                <strong>车辆能耗中控台</strong>
+              </div>
+              <div class="ui-hero-card">
+                <span>本月用车成本</span>
+                <strong>¥ 842.60</strong>
+                <small>平均 0.62 元 / 公里</small>
+                <div class="soft-chart" aria-hidden="true">
+                  <i style="height:38%"></i>
+                  <i style="height:54%"></i>
+                  <i style="height:45%"></i>
+                  <i style="height:72%"></i>
+                  <i style="height:58%"></i>
+                  <i style="height:84%"></i>
+                  <i style="height:66%"></i>
+                </div>
+              </div>
+              <div class="metric-strip">
+                <div><span>平均油耗</span><strong>7.4 L</strong></div>
+                <div><span>本月里程</span><strong>1,358 km</strong></div>
+                <div><span>加油次数</span><strong>4</strong></div>
+              </div>
+            </div>
+            <div class="ui-panel">
+              <div class="panel-chip">Full tank</div>
+              <div class="gauge-ring"><span>86%</span></div>
+              <div class="list-line strong"></div>
+              <div class="list-line"></div>
+              <div class="list-line short"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="statement-section">
+      <p class="reveal">不只是一张表格。它更像一个为车主准备的安静仪表盘：少一点打扰，多一点确定。</p>
+    </section>
+
+    <section id="experience" class="showcase-section light-band" aria-labelledby="experience-title">
+      <div class="section-copy reveal">
+        <p class="eyebrow">Experience</p>
+        <h2 id="experience-title">记录动作足够快，界面才会被长期使用。</h2>
+        <p>加油、行程、统计和设置被放进同一套轻量 PWA 体验里。手机端继续保持工具效率，官网第一版则先建立“产品值得信赖”的视觉印象。</p>
+      </div>
+      <div class="phone-lineup reveal" aria-label="移动端界面展示">
+        <article class="phone-device">
+          <div class="phone-screen home-preview">
+            <span class="phone-kicker">概览</span>
+            <strong>¥ 842.60</strong>
+            <small>本月油费</small>
+            <div class="phone-wave"></div>
+            <div class="phone-grid">
+              <i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+        </article>
+        <article class="phone-device offset">
+          <div class="phone-screen stats-preview">
+            <span class="phone-kicker">统计</span>
+            <div class="mini-bars"><i></i><i></i><i></i><i></i><i></i></div>
+            <strong>7.4 L/100km</strong>
+            <small>近 30 天平均</small>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="insight" class="feature-band dark-band" aria-labelledby="insight-title">
+      <div class="feature-copy reveal">
+        <p class="eyebrow">Insight</p>
+        <h2 id="insight-title">让数字自己变得有解释力。</h2>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card reveal">
+          <span class="feature-dot blue"></span>
+          <h3>油耗趋势</h3>
+          <p>从满箱记录中推算百公里油耗，把异常波动从“感觉”变成可追踪的曲线。</p>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-dot green"></span>
+          <h3>行程成本</h3>
+          <p>把里程、金额、升数和油价放在一起，适合通勤、旅行和多场景用车复盘。</p>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-dot amber"></span>
+          <h3>离线可用</h3>
+          <p>PWA 架构让应用可以添加到桌面，核心数据保存在本地，弱网场景也能继续记录。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="privacy" class="privacy-section" aria-labelledby="privacy-title">
+      <div class="privacy-visual reveal" aria-hidden="true">
+        <img src="icons/icon-512.png" alt="" width="156" height="156">
+        <div class="orbit one"></div>
+        <div class="orbit two"></div>
+      </div>
+      <div class="privacy-copy reveal">
+        <p class="eyebrow">Privacy</p>
+        <h2 id="privacy-title">数据留在你的浏览器里。</h2>
+        <p>当前版本不依赖后端服务，记录存储在本地 localStorage。导出 JSON 后，可以自己备份、迁移或长期保存。</p>
+        <a class="text-link" href="index.html">进入应用</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>油耗记录助手</span>
+    <a href="#top">回到顶部</a>
+  </footer>
+
+  <script src="official.js"></script>
+</body>
+</html>
