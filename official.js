@@ -12,10 +12,14 @@
     entries.forEach(function (entry) {
       if (entry.isIntersecting) {
         entry.target.classList.add('is-visible');
-        observer.unobserve(entry.target);
+      } else {
+        entry.target.classList.remove('is-visible');
       }
     });
-  }, { threshold: 0.18 });
+  }, {
+    rootMargin: '-8% 0px -12% 0px',
+    threshold: 0.16
+  });
 
   items.forEach(function (item) { observer.observe(item); });
 })();
