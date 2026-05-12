@@ -448,7 +448,7 @@
     var h = '<div class="record-item" data-id="' + r.id + '">';
     h += '<div class="record-header"><span class="record-date">' + r.date;
     if (r.fullTank) h += '<span class="badge-full">FULL</span>';
-    h += '</span><button class="record-delete" data-action="delete-fuel" data-id="' + r.id + '">删除</button></div>';
+    h += '</span><div class="record-actions"><button class="record-edit" data-action="edit-fuel" data-id="' + r.id + '">编辑</button><button class="record-delete" data-action="delete-fuel" data-id="' + r.id + '">删除</button></div></div>';
     h += '<div class="record-details">';
     h += '<div class="record-detail">里程 <span>' + fmtDist(r.odometer) + ' km</span></div>';
     h += '<div class="record-detail">金额 <span>¥' + fmtMoney(r.amount) + '</span></div>';
@@ -472,7 +472,9 @@
     h += '<div class="form-hint">填写任意两项，第三项自动计算</div>';
     h += '<div class="form-group" style="margin-top:12px"><div class="form-check"><input type="checkbox" id="fuel-fulltank"' + (r.fullTank ? ' checked' : '') + '><label for="fuel-fulltank">本次已加满油箱</label></div></div>';
     h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="fuel-note" placeholder="例如：中石化、92号" value="' + (r.note || '') + '"></div>';
-    h += '</div><div class="modal-footer"><button class="btn btn-primary btn-block" onclick="window._saveFuel(\'' + (r.id || '') + '\')">保存记录</button></div>';
+    h += '<div class="modal-footer">';
+    if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
+    h += '<button class="btn btn-primary btn-block" onclick="window._saveFuel(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
     setTimeout(function () {
       $$('.fuel-calc').forEach(function (inp) { inp.addEventListener('input', autoCalcFuel); });
@@ -537,7 +539,7 @@
     var h = '<div class="record-item" data-id="' + r.id + '">';
     h += '<div class="record-header"><span class="record-date">' + r.date;
     if (r.purpose) h += ' · ' + escHtml(r.purpose);
-    h += '</span><button class="record-delete" data-action="delete-trip" data-id="' + r.id + '">删除</button></div>';
+    h += '</span><div class="record-actions"><button class="record-edit" data-action="edit-trip" data-id="' + r.id + '">编辑</button><button class="record-delete" data-action="delete-trip" data-id="' + r.id + '">删除</button></div></div>';
     h += '<div class="record-details">';
     h += '<div class="record-detail">名称 <span>' + escHtml(r.name || '未命名') + '</span></div>';
     h += '<div class="record-detail">距离 <span>' + fmtDist(r.distance) + ' km</span></div>';
@@ -563,7 +565,9 @@
     h += '<div class="form-group"><label class="form-label">用途</label><select class="form-input" id="trip-purpose"><option value="">请选择</option><option value="上班"' + (r.purpose === '上班' ? ' selected' : '') + '>上班</option><option value="商务"' + (r.purpose === '商务' ? ' selected' : '') + '>商务</option><option value="出游"' + (r.purpose === '出游' ? ' selected' : '') + '>出游</option><option value="购物"' + (r.purpose === '购物' ? ' selected' : '') + '>购物</option><option value="接送"' + (r.purpose === '接送' ? ' selected' : '') + '>接送</option><option value="其他"' + (r.purpose === '其他' ? ' selected' : '') + '>其他</option></select></div>';
     h += '<div class="form-group"><label class="form-label">预估油费 (元)</label><input type="number" class="form-input" id="trip-cost" placeholder="' + (cpk != null ? '约 ¥' + fmtMoney(cpk) + '/km' : '需要足够数据才能估算') + '" step="0.01" min="0" value="' + (r.estimatedCost || '') + '" inputmode="decimal" readonly></div>';
     h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="trip-note" placeholder="例如：市区拥堵" value="' + (r.note || '') + '"></div>';
-    h += '</div><div class="modal-footer"><button class="btn btn-primary btn-block" onclick="window._saveTrip(\'' + (r.id || '') + '\')">保存记录</button></div>';
+    h += '<div class="modal-footer">';
+    if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
+    h += '<button class="btn btn-primary btn-block" onclick="window._saveTrip(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
     setTimeout(function () {
       $$('.trip-odo').forEach(function (inp) { inp.addEventListener('input', autoCalcDistance); });
@@ -726,6 +730,14 @@
     var navItem = e.target.closest('.nav-item');
     if (navItem) { navigateTo(navItem.dataset.page); return; }
 
+    var delFuel = e.target.closest('[data-action="edit-fuel"]');
+    if (delFuel) {
+      var eid = delFuel.dataset.id;
+      var er = fuelRecords.find(function (r) { return r.id === eid; });
+      if (er) showFuelForm(er);
+      return;
+    }
+
     var delFuel = e.target.closest('[data-action="delete-fuel"]');
     if (delFuel) {
       var fid = delFuel.dataset.id;
@@ -733,6 +745,14 @@
       showConfirm('确定要删除 ' + (fr ? fr.date + ' 的加油记录' : '该条加油记录') + ' 吗？', function () {
         deleteFuelRecord(fid); refreshCurrentPage();
       });
+      return;
+    }
+
+    var delTrip = e.target.closest('[data-action="edit-trip"]');
+    if (delTrip) {
+      var eid = delTrip.dataset.id;
+      var er = tripRecords.find(function (r) { return r.id === eid; });
+      if (er) showTripForm(er);
       return;
     }
 

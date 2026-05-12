@@ -599,6 +599,23 @@ button {
   font-weight: 720;
 }
 
+.record-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.record-edit {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid rgba(114, 167, 255, 0.25);
+  border-radius: 12px;
+  background: rgba(114, 167, 255, 0.08);
+  color: var(--blue);
+  cursor: pointer;
+}
+
 .record-delete {
   min-width: 44px;
   min-height: 36px;
