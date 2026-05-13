@@ -5,7 +5,8 @@
     fuelRecords: 'fuelRecords',
     tripRecords: 'tripRecords',
     chargeRecords: 'chargeRecords',
-    energyMode: 'energyMode'
+    energyMode: 'energyMode',
+    vehicleProfile: 'vehicleProfile'
   };
 
   var ENERGY_MODES = ['fuel', 'electric', 'hybrid'];
@@ -48,6 +49,34 @@
     var nextMode = normalizeEnergyMode(mode);
     localStorage.setItem(STORAGE_KEYS.energyMode, nextMode);
     return nextMode;
+  }
+
+  function normalizeVehicleProfile(profile) {
+    profile = profile && typeof profile === 'object' ? profile : {};
+    var hasOdometer = profile.currentOdometer !== null && profile.currentOdometer !== undefined && profile.currentOdometer !== '';
+    var odometer = hasOdometer ? Number(profile.currentOdometer) : NaN;
+    return {
+      mode: normalizeEnergyMode(profile.mode || getEnergyMode()),
+      currentOdometer: isFinite(odometer) && odometer >= 0 ? odometer : null,
+      initializedAt: profile.initializedAt || null,
+      updatedAt: profile.updatedAt || null,
+      skippedOdometerInit: !!profile.skippedOdometerInit
+    };
+  }
+
+  function getVehicleProfile() {
+    return normalizeVehicleProfile(readJson(STORAGE_KEYS.vehicleProfile, {}));
+  }
+
+  function saveVehicleProfile(profile) {
+    var normalized = normalizeVehicleProfile(profile);
+    writeJson(STORAGE_KEYS.vehicleProfile, normalized);
+    setEnergyMode(normalized.mode);
+    return normalized;
+  }
+
+  function updateVehicleProfile(partial) {
+    return saveVehicleProfile(Object.assign({}, getVehicleProfile(), partial || {}, { updatedAt: new Date().toISOString() }));
   }
 
   function loadData() {
@@ -142,12 +171,14 @@
     }
     data.chargeRecords = Array.isArray(data.chargeRecords) ? data.chargeRecords : [];
     data.energyMode = normalizeEnergyMode(data.energyMode || 'fuel');
+    data.vehicleProfile = normalizeVehicleProfile(data.vehicleProfile || { mode: data.energyMode });
     return normalizeData(data);
   }
 
   function importData(data) {
     var normalized = validateImportData(data);
     setEnergyMode(data.energyMode);
+    saveVehicleProfile(data.vehicleProfile);
     return saveData(normalized);
   }
 
@@ -157,6 +188,7 @@
       version: 2,
       exportedAt: new Date().toISOString(),
       energyMode: getEnergyMode(),
+      vehicleProfile: getVehicleProfile(),
       fuelRecords: data.fuelRecords,
       tripRecords: data.tripRecords,
       chargeRecords: data.chargeRecords
@@ -197,6 +229,9 @@
     saveData: saveData,
     getEnergyMode: getEnergyMode,
     setEnergyMode: setEnergyMode,
+    getVehicleProfile: getVehicleProfile,
+    saveVehicleProfile: saveVehicleProfile,
+    updateVehicleProfile: updateVehicleProfile,
     addFuelRecord: addFuelRecord,
     updateFuelRecord: updateFuelRecord,
     deleteFuelRecord: deleteFuelRecord,

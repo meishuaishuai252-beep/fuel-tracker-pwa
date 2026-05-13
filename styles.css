@@ -794,6 +794,31 @@ html[data-theme="dark"] .theme-seg-btn.active {
   box-shadow: var(--shadow-sm);
 }
 
+.vehicle-odometer-row {
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.vehicle-odometer-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(56%, 210px);
+}
+
+.vehicle-odometer-input .form-input {
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  text-align: right;
+}
+
+.vehicle-odometer-input span {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
 /* ---- Settings Buttons ---- */
 .settings-btn-row {
   display: flex;
@@ -1219,12 +1244,31 @@ html[data-theme="dark"] .ios-hero-card {
   gap: 18px;
 }
 
+.vehicle-hero-top {
+  align-items: center;
+}
+
+.vehicle-hero-copy {
+  min-width: 0;
+  flex: 1 1 52%;
+  position: relative;
+  z-index: 2;
+}
+
 .hero-kicker,
 .ios-mini-card small {
   display: block;
   color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 660;
+}
+
+.hero-subtitle-en {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 0.76rem;
+  font-weight: 620;
 }
 
 .hero-card-top strong {
@@ -1235,6 +1279,19 @@ html[data-theme="dark"] .ios-hero-card {
   line-height: 0.98;
   font-weight: 820;
   letter-spacing: -0.055em;
+}
+
+.hero-card-top .odometer-value {
+  font-size: clamp(2.8rem, 13vw, 4.35rem);
+  letter-spacing: -0.07em;
+}
+
+.hero-odometer-unit {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 720;
 }
 
 .hero-card-top small {
@@ -1251,6 +1308,105 @@ html[data-theme="dark"] .ios-hero-card {
   display: grid;
   place-items: center;
   color: var(--hero-icon);
+}
+
+.hero-vehicle {
+  width: min(44%, 188px);
+  min-width: 142px;
+  display: grid;
+  place-items: center;
+  margin-right: -8px;
+}
+
+.vehicle-visual {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  --vehicle-body-start: rgba(255, 255, 255, 0.96);
+  --vehicle-body-end: rgba(203, 212, 232, 0.96);
+  filter: drop-shadow(0 18px 26px rgba(53, 66, 94, 0.18));
+}
+
+html[data-theme="dark"] .vehicle-visual {
+  --vehicle-body-start: rgba(70, 76, 98, 0.98);
+  --vehicle-body-end: rgba(26, 30, 45, 0.98);
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.42));
+}
+
+.vehicle-electric {
+  --vehicle-body-start: rgba(235, 248, 255, 0.98);
+  --vehicle-body-end: rgba(139, 190, 255, 0.96);
+}
+
+.vehicle-hybrid {
+  --vehicle-body-start: rgba(243, 244, 255, 0.98);
+  --vehicle-body-end: rgba(181, 210, 184, 0.96);
+}
+
+.vehicle-body {
+  fill: url(#carBody-fuel);
+  stroke: rgba(255, 255, 255, 0.74);
+  stroke-width: 1.4;
+}
+
+.vehicle-electric .vehicle-body { fill: url(#carBody-electric); }
+.vehicle-hybrid .vehicle-body { fill: url(#carBody-hybrid); }
+
+.vehicle-glass {
+  fill: url(#carGlass-fuel);
+  stroke: rgba(255, 255, 255, 0.55);
+}
+
+.vehicle-electric .vehicle-glass { fill: url(#carGlass-electric); }
+.vehicle-hybrid .vehicle-glass { fill: url(#carGlass-hybrid); }
+
+.vehicle-highlight {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.vehicle-shadow {
+  fill: rgba(50, 60, 90, 0.18);
+}
+
+.vehicle-wheel {
+  fill: rgba(32, 34, 42, 0.92);
+}
+
+.vehicle-wheel-core {
+  fill: rgba(255, 255, 255, 0.74);
+}
+
+.vehicle-badge {
+  fill: rgba(255, 255, 255, 0.62);
+  stroke: rgba(255, 255, 255, 0.64);
+}
+
+.vehicle-badge-text {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.vehicle-fuel-mark {
+  fill: rgba(255, 149, 0, 0.22);
+  stroke: rgba(255, 149, 0, 0.48);
+  stroke-width: 2;
+}
+
+.vehicle-spark {
+  fill: rgba(0, 122, 255, 0.22);
+  stroke: rgba(0, 122, 255, 0.56);
+  stroke-width: 2;
+}
+
+.vehicle-leaf {
+  fill: rgba(52, 199, 89, 0.18);
+  stroke: rgba(88, 86, 214, 0.46);
+  stroke-width: 2;
 }
 
 .hero-pump .ui-icon {

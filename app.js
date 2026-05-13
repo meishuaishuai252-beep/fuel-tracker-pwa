@@ -8,6 +8,7 @@
   var currentPage = 'home';
   var energyMode = 'fuel';
   var activeEnergyTab = 'fuel';
+  var vehicleProfile = null;
   var dataService = window.dataService;
 
   // ==================== DOM Elements ====================
@@ -124,6 +125,28 @@
     return icons[name] || '';
   }
 
+  function vehicleVisual(mode) {
+    mode = normalizeEnergyMode(mode || energyMode);
+    var badge = mode === 'electric' ? 'EV' : (mode === 'hybrid' ? 'HY' : 'ICE');
+    var accentClass = 'vehicle-' + mode;
+    var extra = mode === 'electric'
+      ? '<path class="vehicle-spark" d="M156 34l-10 17h12l-8 17 20-24h-13l7-10z"/>'
+      : (mode === 'hybrid'
+        ? '<path class="vehicle-leaf" d="M151 45c18-18 34-13 40-8-3 16-17 29-36 23-5 8-11 13-19 16 7-8 12-16 15-31z"/>'
+        : '<path class="vehicle-fuel-mark" d="M154 40h22a8 8 0 0 1 8 8v30h-38V48a8 8 0 0 1 8-8zM153 56h24"/>');
+    return '<svg class="vehicle-visual ' + accentClass + '" viewBox="0 0 220 132" role="img" aria-label="' + getModeLabel(mode) + '车辆图">' +
+      '<defs><linearGradient id="carBody-' + mode + '" x1="28" y1="22" x2="194" y2="110" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--vehicle-body-start)"/><stop offset="1" stop-color="var(--vehicle-body-end)"/></linearGradient><linearGradient id="carGlass-' + mode + '" x1="76" y1="32" x2="144" y2="66"><stop offset="0" stop-color="rgba(255,255,255,.88)"/><stop offset="1" stop-color="rgba(255,255,255,.24)"/></linearGradient></defs>' +
+      '<ellipse class="vehicle-shadow" cx="112" cy="108" rx="78" ry="13"/>' +
+      '<path class="vehicle-body" d="M28 85c5-20 19-27 41-28l16-21c7-9 18-14 30-14h31c11 0 22 6 28 15l16 23c14 4 22 13 25 26 2 8-4 16-13 16H42c-10 0-17-8-14-17z"/>' +
+      '<path class="vehicle-glass" d="M86 57l13-17c4-5 10-8 17-8h25c8 0 15 4 19 11l8 14H86z"/>' +
+      '<path class="vehicle-highlight" d="M42 80c33-10 86-13 148-4"/>' +
+      '<circle class="vehicle-wheel" cx="70" cy="98" r="17"/><circle class="vehicle-wheel-core" cx="70" cy="98" r="7"/>' +
+      '<circle class="vehicle-wheel" cx="168" cy="98" r="17"/><circle class="vehicle-wheel-core" cx="168" cy="98" r="7"/>' +
+      '<rect class="vehicle-badge" x="31" y="31" width="43" height="24" rx="12"/><text class="vehicle-badge-text" x="52.5" y="48" text-anchor="middle">' + badge + '</text>' +
+      extra +
+      '</svg>';
+  }
+
   function today() {
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -172,6 +195,10 @@
   function loadData() {
     applyData(dataService.loadData());
     energyMode = dataService.getEnergyMode ? dataService.getEnergyMode() : 'fuel';
+    vehicleProfile = dataService.getVehicleProfile ? dataService.getVehicleProfile() : { mode: energyMode, currentOdometer: null, initializedAt: null, updatedAt: null };
+    if (vehicleProfile && vehicleProfile.mode && vehicleProfile.mode !== energyMode) {
+      energyMode = dataService.setEnergyMode ? dataService.setEnergyMode(vehicleProfile.mode) : vehicleProfile.mode;
+    }
     activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
     updateEnergyNav();
   }
@@ -211,6 +238,7 @@
 
   function setEnergyMode(mode) {
     energyMode = dataService.setEnergyMode ? dataService.setEnergyMode(mode) : normalizeEnergyMode(mode);
+    vehicleProfile = dataService.updateVehicleProfile ? dataService.updateVehicleProfile({ mode: energyMode }) : Object.assign({}, vehicleProfile || {}, { mode: energyMode });
     activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
     updateEnergyNav();
     refreshCurrentPage();
@@ -386,6 +414,51 @@
     return (fuel.totalAmount + charge.totalAmount) / monthlyDist;
   }
 
+  function getModeLabel(mode) {
+    mode = mode || energyMode;
+    if (mode === 'electric') return '纯电模式';
+    if (mode === 'hybrid') return '油电混合';
+    return '燃油模式';
+  }
+
+  function getMaxRecordOdometer() {
+    var values = [];
+    fuelRecords.forEach(function (r) { if (Number(r.odometer) >= 0) values.push(Number(r.odometer)); });
+    chargeRecords.forEach(function (r) { if (Number(r.odometer) >= 0) values.push(Number(r.odometer)); });
+    tripRecords.forEach(function (r) {
+      if (Number(r.startOdometer) >= 0) values.push(Number(r.startOdometer));
+      if (Number(r.endOdometer) >= 0) values.push(Number(r.endOdometer));
+    });
+    return values.length ? Math.max.apply(null, values) : null;
+  }
+
+  function getCurrentOdometerInfo() {
+    var profile = vehicleProfile || {};
+    var profileOdo = Number(profile.currentOdometer);
+    var recordOdo = getMaxRecordOdometer();
+    var hasProfile = isFinite(profileOdo) && profileOdo >= 0;
+    var value = hasProfile ? profileOdo : null;
+    var source = hasProfile ? 'profile' : 'none';
+    if (recordOdo != null && (!hasProfile || recordOdo > value)) {
+      value = recordOdo;
+      source = 'records';
+    }
+    return {
+      value: value,
+      source: source,
+      updatedAt: profile.updatedAt || profile.initializedAt || null
+    };
+  }
+
+  function formatOdometer(value) {
+    return value == null ? '待设置' : Math.round(Number(value)).toLocaleString('en-US');
+  }
+
+  function shouldShowOdometerInit() {
+    var profile = vehicleProfile || {};
+    return profile.currentOdometer == null && getMaxRecordOdometer() == null && !profile.skippedOdometerInit;
+  }
+
   function getFuelConfidence() {
     var fullCount = fuelRecords.filter(function (r) { return r.fullTank; }).length;
     if (fuelRecords.length >= 4 && fullCount >= 2) return { label: '数据可信', detail: fullCount + ' 次满箱校准', pct: 88 };
@@ -537,9 +610,7 @@
     var fuelCost = getCostPerKm();
     var electricCost = getElectricCostPerKm();
     var hybridCost = getHybridCostPerKm();
-    var heroTitle = energyMode === 'electric' ? '本月电费' : (energyMode === 'hybrid' ? '本月总能耗费用' : '本月油费');
-    var heroValue = energyMode === 'electric' ? monthlyCharge.totalAmount : (energyMode === 'hybrid' ? monthlyFuel.totalAmount + monthlyCharge.totalAmount : monthlyFuel.totalAmount);
-    var heroIcon = energyMode === 'electric' ? icon('charge') : (energyMode === 'hybrid' ? icon('energy') : icon('fuel'));
+    var odoInfo = getCurrentOdometerInfo();
     var primaryAvg = energyMode === 'electric' ? chargeTrend.avg : fuelTrend.avg;
     var primaryCost = energyMode === 'electric' ? electricCost : (energyMode === 'hybrid' ? hybridCost : fuelCost);
     var primaryUnit = energyMode === 'electric' ? 'kWh/100km' : (energyMode === 'hybrid' ? '综合 /km' : 'L/100km');
@@ -547,15 +618,15 @@
 
     h += '<div class="page-head home-head"><div><h2>概览</h2><div class="subtitle">Energy Overview</div></div>' + userAvatarButton() + '</div>';
     h += '<section class="ios-hero-card energy-mode-' + energyMode + '">';
-    h += '<div class="hero-card-top"><div><span class="hero-kicker">' + heroTitle + '</span><strong>¥' + fmtMoney(heroValue) + '</strong><small>' + monthLabel() + ' · ' + getEnergyPageTitle() + '</small></div><div class="hero-pump">' + heroIcon + '</div></div>';
+    h += '<div class="hero-card-top vehicle-hero-top"><div class="vehicle-hero-copy"><span class="hero-kicker">当前总里程</span><span class="hero-subtitle-en">Current Odometer</span><strong class="odometer-value">' + formatOdometer(odoInfo.value) + '</strong>' + (odoInfo.value == null ? '' : '<span class="hero-odometer-unit">km</span>') + '<small>' + (odoInfo.value == null ? '未初始化 · 可在设置中填写' : getModeLabel() + ' · ' + (odoInfo.source === 'records' ? '来自最新记录' : '车辆信息')) + '</small></div><div class="hero-vehicle">' + vehicleVisual(energyMode) + '</div></div>';
     h += '<div class="hero-metrics">';
-    h += '<div><span>' + (energyMode === 'electric' ? '平均电耗' : (energyMode === 'hybrid' ? '综合成本' : '平均油耗')) + '</span><strong>' + (energyMode === 'hybrid' ? (primaryCost != null ? '¥' + fmtMoney(primaryCost) : '—') : (primaryAvg != null ? fmtFuel(primaryAvg) : '—')) + '</strong><small>' + primaryUnit + '</small></div>';
-    h += '<div><span>' + (energyMode === 'electric' ? '每公里电费' : (energyMode === 'hybrid' ? '本月油费' : '每公里油费')) + '</span><strong>' + (energyMode === 'hybrid' ? '¥' + fmtMoney(monthlyFuel.totalAmount) : (primaryCost != null ? '¥' + fmtMoney(primaryCost) : '—')) + '</strong><small>' + (energyMode === 'hybrid' ? 'fuel' : '/km') + '</small></div>';
-    h += '<div><span>' + (energyMode === 'electric' ? '本月电量' : (energyMode === 'hybrid' ? '本月电费' : '本月油量')) + '</span><strong>' + (energyMode === 'fuel' ? fmtFuel(monthlyFuel.totalLiters) : (energyMode === 'hybrid' ? '¥' + fmtMoney(monthlyCharge.totalAmount) : fmtFuel(monthlyCharge.totalKwh))) + '</strong><small>' + (energyMode === 'fuel' ? 'L' : (energyMode === 'hybrid' ? 'charge' : 'kWh')) + '</small></div>';
+    h += '<div><span>本月行驶</span><strong>' + fmtDist(monthlyDist) + '</strong><small>km</small></div>';
+    h += '<div><span>' + (energyMode === 'electric' ? '每公里电费' : (energyMode === 'hybrid' ? '综合成本' : '每公里油费')) + '</span><strong>' + (primaryCost != null ? '¥' + fmtMoney(primaryCost) : '—') + '</strong><small>/km</small></div>';
+    h += '<div><span>' + (energyMode === 'electric' ? '平均电耗' : (energyMode === 'hybrid' ? '本月总费用' : '平均油耗')) + '</span><strong>' + (energyMode === 'hybrid' ? '¥' + fmtMoney(monthlyFuel.totalAmount + monthlyCharge.totalAmount) : (primaryAvg != null ? fmtFuel(primaryAvg) : '—')) + '</strong><small>' + primaryUnit + '</small></div>';
     h += '</div></section>';
 
     h += '<div class="quick-actions">';
-    h += '<button class="btn-action" onclick="window._showEnergyForm()"><span class="action-icon action-fuel">' + (energyMode === 'electric' ? icon('charge') : icon('fuel')) + '</span><span>记录' + getEnergyPageTitle() + '</span></button>';
+    h += '<button class="btn-action" onclick="window._showEnergyForm()"><span class="action-icon ' + (energyMode === 'electric' ? 'action-charge' : 'action-fuel') + '">' + (energyMode === 'electric' ? icon('charge') : icon('fuel')) + '</span><span>记录' + getEnergyPageTitle() + '</span></button>';
     h += '<button class="btn-action" onclick="window._showTripForm()"><span class="action-icon action-trip">' + icon('route') + '</span><span>记录行程</span></button>';
     h += '</div>';
 
@@ -983,13 +1054,16 @@
     h += '</div></div>';
     h += '</div>';
 
-    // Energy mode
-    h += '<div class="settings-section"><h3>车辆能耗模式</h3>';
+    // Vehicle profile
+    var odoInfo = getCurrentOdometerInfo();
+    h += '<div class="settings-section"><h3>车辆信息</h3>';
     h += '<div class="settings-row"><div class="theme-segmented energy-mode-control">';
     h += '<button class="theme-seg-btn' + (energyMode === 'fuel' ? ' active' : '') + '" onclick="window._setEnergyMode(\'fuel\')">燃油模式</button>';
     h += '<button class="theme-seg-btn' + (energyMode === 'electric' ? ' active' : '') + '" onclick="window._setEnergyMode(\'electric\')">纯电模式</button>';
     h += '<button class="theme-seg-btn' + (energyMode === 'hybrid' ? ' active' : '') + '" onclick="window._setEnergyMode(\'hybrid\')">油电混合</button>';
     h += '</div></div>';
+    h += '<div class="settings-row vehicle-odometer-row"><label class="settings-label" for="vehicle-odometer">当前总里程</label><div class="vehicle-odometer-input"><input id="vehicle-odometer" class="form-input" type="number" min="0" step="1" inputmode="numeric" value="' + (odoInfo.value != null ? Math.round(odoInfo.value) : '') + '" placeholder="例如 23680"><span>km</span></div></div>';
+    h += '<div class="settings-btn-row"><button class="btn btn-primary btn-block" onclick="window._saveVehicleSettings()">保存车辆信息</button></div>';
     h += '</div>';
 
     // Data info
@@ -1035,6 +1109,7 @@
         showConfirm('即将导入 ' + data.fuelRecords.length + ' 条加油记录、' + data.chargeRecords.length + ' 条充电记录和 ' + data.tripRecords.length + ' 条行程记录。\n\n⚠ 当前数据将被覆盖，是否继续？', function () {
           applyData(dataService.importData(data));
           energyMode = dataService.getEnergyMode ? dataService.getEnergyMode() : 'fuel';
+          vehicleProfile = dataService.getVehicleProfile ? dataService.getVehicleProfile() : vehicleProfile;
           activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
           updateEnergyNav();
           alert('导入成功！');
@@ -1050,6 +1125,58 @@
       applyData(dataService.clearAllData());
       navigateTo('home');
     });
+  };
+
+  function showOdometerInitPrompt() {
+    var h = '<div class="modal-header"><h2>' + icon('gauge') + '初始化车辆里程</h2><button class="modal-close" onclick="window._skipVehicleInit()" aria-label="关闭">×</button></div>';
+    h += '<div class="modal-body">';
+    h += '<div class="form-hint">为了让首页显示真实的当前总里程，请先填写一次车辆基础信息。以后可以在设置页修改。</div>';
+    h += '<div class="form-group"><label class="form-label">车辆模式</label><select class="form-input" id="init-energy-mode"><option value="fuel"' + (energyMode === 'fuel' ? ' selected' : '') + '>燃油模式</option><option value="electric"' + (energyMode === 'electric' ? ' selected' : '') + '>纯电模式</option><option value="hybrid"' + (energyMode === 'hybrid' ? ' selected' : '') + '>油电混合模式</option></select></div>';
+    h += '<div class="form-group"><label class="form-label">当前车辆总里程 (km)</label><input type="number" class="form-input" id="init-odometer" min="0" step="1" inputmode="numeric" placeholder="例如 23680"></div>';
+    h += '<div class="modal-footer"><button class="btn btn-outline" onclick="window._skipVehicleInit()">稍后设置</button><button class="btn btn-primary btn-block" onclick="window._saveVehicleInit()">保存</button></div>';
+    openModal(h);
+  }
+
+  function saveVehicleProfileFromValues(mode, odometer, skipped) {
+    mode = normalizeEnergyMode(mode || energyMode);
+    var now = new Date().toISOString();
+    var current = dataService.getVehicleProfile ? dataService.getVehicleProfile() : {};
+    var next = Object.assign({}, current, {
+      mode: mode,
+      currentOdometer: odometer,
+      initializedAt: current.initializedAt || now,
+      updatedAt: now,
+      skippedOdometerInit: !!skipped
+    });
+    vehicleProfile = dataService.saveVehicleProfile ? dataService.saveVehicleProfile(next) : next;
+    energyMode = dataService.getEnergyMode ? dataService.getEnergyMode() : mode;
+    activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
+    updateEnergyNav();
+  }
+
+  window._saveVehicleInit = function () {
+    var modeEl = $('#init-energy-mode');
+    var odoEl = $('#init-odometer');
+    var odo = parseFloat(odoEl.value);
+    if (isNaN(odo) || odo < 0) { alert('请输入有效的当前总里程'); return; }
+    saveVehicleProfileFromValues(modeEl.value, odo, false);
+    closeModal();
+    refreshCurrentPage();
+  };
+
+  window._skipVehicleInit = function () {
+    saveVehicleProfileFromValues(energyMode, null, true);
+    closeModal();
+    refreshCurrentPage();
+  };
+
+  window._saveVehicleSettings = function () {
+    var odoEl = $('#vehicle-odometer');
+    var odo = parseFloat(odoEl.value);
+    if (isNaN(odo) || odo < 0) { alert('请输入有效的当前总里程'); return; }
+    saveVehicleProfileFromValues(energyMode, odo, false);
+    alert('车辆信息已保存');
+    refreshCurrentPage();
   };
 
   // ==================== Render Dispatch ====================
@@ -1175,6 +1302,9 @@
     updateAvatar();
     navigateTo('home');
     setTimeout(updateNavPill, 200);
+    if (shouldShowOdometerInit()) {
+      setTimeout(showOdometerInitPrompt, 450);
+    }
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js').catch(function () {});
     }
