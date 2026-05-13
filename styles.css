@@ -751,6 +751,7 @@ button { touch-action: manipulation; }
   border-radius: 10px;
   padding: 3px;
   gap: 2px;
+  width: 100%;
 }
 .theme-seg-btn {
   flex: 1;
@@ -771,6 +772,26 @@ button { touch-action: manipulation; }
 }
 html[data-theme="dark"] .theme-seg-btn.active {
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.energy-mode-control .theme-seg-btn,
+.energy-segmented .theme-seg-btn {
+  min-height: 36px;
+  padding-left: 10px;
+  padding-right: 10px;
+  white-space: nowrap;
+}
+
+.energy-segmented {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-bg-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ---- Settings Buttons ---- */
@@ -1312,6 +1333,17 @@ html[data-theme="dark"] .ios-hero-card {
 .list-icon.fuel {
   background: rgba(52, 199, 89, 0.14);
   color: var(--accent-green);
+}
+
+.action-charge,
+.list-icon.charge {
+  background: rgba(0, 122, 255, 0.14);
+  color: var(--accent-blue);
+}
+
+.energy-mode-electric .hero-pump,
+.energy-mode-hybrid .hero-pump {
+  color: var(--accent-blue);
 }
 
 .action-trip,
