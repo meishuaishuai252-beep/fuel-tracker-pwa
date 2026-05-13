@@ -1103,15 +1103,52 @@
     mainContent.innerHTML = h;
   }
 
-  window._exportData = function () {
-    var ok = dataService.downloadExport('油耗记录备份_' + today() + '.json');
+  window._exportData = async function () {
+    var filename = getBackupFilename();
+    var text = getBackupText();
+    if (window.showSaveFilePicker) {
+      try {
+        var handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'JSON Backup', accept: { 'application/json': ['.json'] } }]
+        });
+        var writable = await handle.createWritable();
+        await writable.write(new Blob([text], { type: 'application/json;charset=utf-8' }));
+        await writable.close();
+        alert('JSON 文件已保存。');
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+
+    var ok = dataService.downloadExport(filename);
     if (!ok) {
       alert('文件下载失败，请使用“复制备份文本”。');
       showManualBackupText('自动下载失败，请手动复制下方备份文本。');
     }
   };
 
-  window._importData = function () {
+  window._importData = async function () {
+    if (window.showOpenFilePicker) {
+      try {
+        var handles = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{ description: 'JSON Backup', accept: { 'application/json': ['.json'], 'text/plain': ['.json', '.txt'] } }]
+        });
+        if (handles && handles[0]) {
+          var file = await handles[0].getFile();
+          var data = await dataService.readImportFile(file);
+          applyImportedDataWithConfirm(data);
+          return;
+        }
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        alert('文件读取或解析失败，请使用“粘贴备份恢复”，并确认选择的是完整 JSON 文件。');
+        return;
+      }
+    }
+
     var inp = $('#import-file-input');
     if (!inp) {
       alert('无法打开文件选择器，请使用“粘贴备份恢复”。');
