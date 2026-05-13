@@ -9,6 +9,7 @@
   var energyMode = 'fuel';
   var activeEnergyTab = 'fuel';
   var vehicleProfile = null;
+  var userPreferences = {};
   var dataService = window.dataService;
 
   // ==================== DOM Elements ====================
@@ -197,6 +198,7 @@
     applyData(dataService.loadData());
     energyMode = dataService.getEnergyMode ? dataService.getEnergyMode() : 'fuel';
     vehicleProfile = dataService.getVehicleProfile ? dataService.getVehicleProfile() : { mode: energyMode, currentOdometer: null, initializedAt: null, updatedAt: null };
+    userPreferences = dataService.getUserPreferences ? dataService.getUserPreferences() : {};
     if (vehicleProfile && vehicleProfile.mode && vehicleProfile.mode !== energyMode) {
       energyMode = dataService.setEnergyMode ? dataService.setEnergyMode(vehicleProfile.mode) : vehicleProfile.mode;
     }
@@ -460,6 +462,69 @@
     return profile.currentOdometer == null && getMaxRecordOdometer() == null && !profile.skippedOdometerInit;
   }
 
+  function pref(key, fallback) {
+    return userPreferences && userPreferences[key] != null ? userPreferences[key] : fallback;
+  }
+
+  function savePrefs(partial) {
+    userPreferences = dataService.updateUserPreferences ? dataService.updateUserPreferences(partial) : Object.assign({}, userPreferences, partial || {});
+  }
+
+  function selectOptions(options, value) {
+    return options.map(function (opt) {
+      return '<option value="' + escHtml(opt) + '"' + (opt === value ? ' selected' : '') + '>' + escHtml(opt) + '</option>';
+    }).join('');
+  }
+
+  function optionalNumber(selector) {
+    var el = $(selector);
+    if (!el || el.value === '') return null;
+    var n = parseFloat(el.value);
+    return isNaN(n) ? null : n;
+  }
+
+  function getSuggestedOdometer() {
+    var info = getCurrentOdometerInfo();
+    return info.value != null ? info.value : '';
+  }
+
+  function getSuggestedTripStart() {
+    if (tripRecords.length) {
+      var latestTrip = sortByDateDesc(tripRecords)[0];
+      if (Number(latestTrip.endOdometer) >= 0) return Number(latestTrip.endOdometer);
+    }
+    var info = getCurrentOdometerInfo();
+    return info.value != null ? info.value : '';
+  }
+
+  function getCurrentEnergyCostPerKm() {
+    if (energyMode === 'electric') return getElectricCostPerKm();
+    if (energyMode === 'hybrid') return getHybridCostPerKm() || getCostPerKm() || getElectricCostPerKm();
+    return getCostPerKm();
+  }
+
+  function updateVehicleOdometerIfNeeded(odometer) {
+    odometer = Number(odometer);
+    if (!isFinite(odometer) || odometer < 0) return;
+    var current = dataService.getVehicleProfile ? dataService.getVehicleProfile() : (vehicleProfile || {});
+    var currentOdo = Number(current.currentOdometer);
+    if (!isFinite(currentOdo) || odometer > currentOdo) {
+      vehicleProfile = dataService.updateVehicleProfile ? dataService.updateVehicleProfile({ currentOdometer: odometer, mode: energyMode }) : Object.assign({}, current, { currentOdometer: odometer, mode: energyMode });
+    }
+  }
+
+  function maxHistoricalOdometer(excludeId) {
+    var max = null;
+    fuelRecords.forEach(function (r) { if (r.id !== excludeId && Number(r.odometer) >= 0) max = Math.max(max == null ? Number(r.odometer) : max, Number(r.odometer)); });
+    chargeRecords.forEach(function (r) { if (r.id !== excludeId && Number(r.odometer) >= 0) max = Math.max(max == null ? Number(r.odometer) : max, Number(r.odometer)); });
+    tripRecords.forEach(function (r) {
+      if (r.id === excludeId) return;
+      if (Number(r.startOdometer) >= 0) max = Math.max(max == null ? Number(r.startOdometer) : max, Number(r.startOdometer));
+      if (Number(r.endOdometer) >= 0) max = Math.max(max == null ? Number(r.endOdometer) : max, Number(r.endOdometer));
+    });
+    return max;
+  }
+
   function getFuelConfidence() {
     var fullCount = fuelRecords.filter(function (r) { return r.fullTank; }).length;
     if (fuelRecords.length >= 4 && fullCount >= 2) return { label: '数据可信', detail: fullCount + ' 次满箱校准', pct: 88 };
@@ -717,10 +782,12 @@
     if (r.fullTank) h += '<span class="badge-full">FULL</span>';
     h += '</span><div class="record-actions"><button class="record-edit" data-action="edit-fuel" data-id="' + r.id + '">编辑</button><button class="record-delete" data-action="delete-fuel" data-id="' + r.id + '">删除</button></div></div>';
     h += '<div class="record-details">';
-    h += '<div class="record-detail">里程 <span>' + fmtDist(r.odometer) + ' km</span></div>';
     h += '<div class="record-detail">金额 <span>¥' + fmtMoney(r.amount) + '</span></div>';
     h += '<div class="record-detail">升数 <span>' + fmtFuel(r.liters) + ' L</span></div>';
     h += '<div class="record-detail">油价 <span>¥' + fmtMoney(r.pricePerLiter) + '/L</span></div>';
+    h += '<div class="record-detail">里程 <span>' + fmtDist(r.odometer) + ' km</span></div>';
+    h += '<div class="record-detail">油品 <span>' + escHtml(r.fuelType || '未填') + '</span></div>';
+    h += '<div class="record-detail">油站 <span>' + escHtml(r.station || '未填') + '</span></div>';
     h += '</div>';
     if (r.note) h += '<div class="record-note">' + escHtml(r.note) + '</div>';
     h += '</div>';
@@ -729,35 +796,41 @@
 
   function showFuelForm(editRecord) {
     var r = editRecord || {};
+    var odo = r.odometer != null ? r.odometer : getSuggestedOdometer();
+    var fuelType = r.fuelType || pref('fuelType', '92#');
+    var station = r.station || pref('station', '中石化');
+    var payment = r.paymentMethod || pref('paymentMethod', '微信');
     var h = '<div class="modal-header"><h2>' + icon('fuel') + (editRecord ? '编辑加油记录' : '新增加油记录') + '</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
     h += '<div class="modal-body">';
     h += '<div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="fuel-date" value="' + (r.date || today()) + '"></div>';
-    h += '<div class="form-group"><label class="form-label">当前总里程 (km)</label><input type="number" class="form-input" id="fuel-odo" placeholder="例如 35620" step="0.1" min="0" value="' + (r.odometer || '') + '" inputmode="decimal"></div>';
+    h += '<div class="form-group"><label class="form-label">当前总里程 (km)</label><input type="number" class="form-input" id="fuel-odo" placeholder="例如 35620" step="0.1" min="0" value="' + (odo || '') + '" inputmode="decimal"></div>';
     h += '<div class="form-group"><label class="form-label">加油金额 (元)</label><input type="number" class="form-input fuel-calc" id="fuel-amount" placeholder="例如 300" step="0.01" min="0" value="' + (r.amount || '') + '" inputmode="decimal" data-role="amount"></div>';
     h += '<div class="form-group"><label class="form-label">加油升数 (L)</label><input type="number" class="form-input fuel-calc" id="fuel-liters" placeholder="例如 38.5" step="0.01" min="0" value="' + (r.liters || '') + '" inputmode="decimal" data-role="liters"></div>';
     h += '<div class="form-group"><label class="form-label">油价 (元/L)</label><input type="number" class="form-input fuel-calc" id="fuel-price" placeholder="自动计算或手动输入" step="0.01" min="0" value="' + (r.pricePerLiter || '') + '" inputmode="decimal" data-role="price"></div>';
     h += '<div class="form-hint">填写任意两项，第三项自动计算</div>';
     h += '<div class="form-group" style="margin-top:12px"><div class="form-check"><input type="checkbox" id="fuel-fulltank"' + (r.fullTank ? ' checked' : '') + '><label for="fuel-fulltank">本次已加满油箱</label></div></div>';
-    h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="fuel-note" placeholder="例如：中石化、92号" value="' + (r.note || '') + '"></div>';
+    h += '<details class="more-fields"><summary>更多信息</summary>';
+    h += '<div class="form-group"><label class="form-label">油品类型</label><select class="form-input" id="fuel-type">' + selectOptions(['92#', '95#', '98#', '柴油', '其他'], fuelType) + '</select></div>';
+    h += '<div class="form-group"><label class="form-label">加油站</label><select class="form-input" id="fuel-station">' + selectOptions(['中石化', '中石油', '民营', '其他'], station) + '</select></div>';
+    h += '<div class="form-group"><label class="form-label">支付方式</label><select class="form-input" id="fuel-payment">' + selectOptions(['微信', '支付宝', '现金', '银行卡', '其他'], payment) + '</select></div>';
+    h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="fuel-note" placeholder="例如：中石化、92号" value="' + escHtml(r.note || '') + '"></div>';
+    h += '</details>';
     h += '<div class="modal-footer">';
     if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
     h += '<button class="btn btn-primary btn-block" onclick="window._saveFuel(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
     setTimeout(function () {
-      $$('.fuel-calc').forEach(function (inp) { inp.addEventListener('input', autoCalcFuel); });
+      $$('.fuel-calc').forEach(function (inp) { inp.addEventListener('input', function () { autoCalcFuel(inp.id); }); });
     }, 100);
   }
 
-  function autoCalcFuel() {
+  function autoCalcFuel(changedId) {
     var amtEl = $('#fuel-amount'), litEl = $('#fuel-liters'), prcEl = $('#fuel-price');
     if (!amtEl || !litEl || !prcEl) return;
     var amt = parseFloat(amtEl.value), lit = parseFloat(litEl.value), prc = parseFloat(prcEl.value);
-    var filled = [!!amtEl.value, !!litEl.value, !!prcEl.value].filter(Boolean).length;
-    if (filled >= 2) {
-      if (amtEl.value && litEl.value && !isNaN(amt) && !isNaN(lit) && lit > 0) prcEl.value = fmtMoney(amt / lit);
-      else if (litEl.value && prcEl.value && !isNaN(lit) && !isNaN(prc)) amtEl.value = fmtMoney(lit * prc);
-      else if (amtEl.value && prcEl.value && !isNaN(amt) && !isNaN(prc) && prc > 0) litEl.value = fmtFuel(amt / prc);
-    }
+    if (changedId !== 'fuel-price' && amtEl.value && litEl.value && !isNaN(amt) && !isNaN(lit) && lit > 0) prcEl.value = fmtMoney(amt / lit);
+    else if (changedId !== 'fuel-amount' && litEl.value && prcEl.value && !isNaN(lit) && !isNaN(prc) && prc > 0) amtEl.value = fmtMoney(lit * prc);
+    else if (changedId !== 'fuel-liters' && amtEl.value && prcEl.value && !isNaN(amt) && !isNaN(prc) && prc > 0) litEl.value = fmtFuel(amt / prc);
   }
 
   window._saveFuel = function (editId) {
@@ -767,15 +840,26 @@
     var lit = parseFloat($('#fuel-liters').value) || 0;
     var prc = parseFloat($('#fuel-price').value) || 0;
     var full = $('#fuel-fulltank').checked;
+    var fuelType = $('#fuel-type') ? $('#fuel-type').value : '';
+    var station = $('#fuel-station') ? $('#fuel-station').value : '';
+    var paymentMethod = $('#fuel-payment') ? $('#fuel-payment').value : '';
     var note = $('#fuel-note').value.trim();
     if (!date) { alert('请选择日期'); return; }
     if (isNaN(odo) || odo < 0) { alert('请输入有效的里程数'); return; }
-    if (amt === 0 && lit === 0) { alert('请至少填写金额或升数'); return; }
+    if (amt <= 0) { alert('加油金额必须大于 0'); return; }
+    if (lit <= 0) { alert('加油升数必须大于 0'); return; }
+    if (prc <= 0) { alert('油价必须大于 0'); return; }
+    if ((prc < 3 || prc > 15) && !confirm('油价看起来异常，是否继续保存？')) return;
+    var maxOdo = maxHistoricalOdometer(editId);
+    if (maxOdo != null && odo < maxOdo && !confirm('当前里程小于历史记录最大里程，是否继续保存？')) return;
+    var record = { id: editId || genId(), date: date, odometer: odo, amount: Number(fmtMoney(amt)), liters: Number(fmtFuel(lit)), pricePerLiter: Number(fmtMoney(prc)), fullTank: full, fuelType: fuelType, station: station, paymentMethod: paymentMethod, note: note };
     if (editId) {
-      updateFuelRecord(editId, { id: editId, date: date, odometer: odo, amount: amt, liters: lit, pricePerLiter: prc, fullTank: full, note: note });
+      updateFuelRecord(editId, record);
     } else {
-      addFuelRecord({ id: genId(), date: date, odometer: odo, amount: amt, liters: lit, pricePerLiter: prc, fullTank: full, note: note });
+      addFuelRecord(record);
     }
+    savePrefs({ fuelType: fuelType, station: station, paymentMethod: paymentMethod });
+    updateVehicleOdometerIfNeeded(odo);
     closeModal(); refreshCurrentPage();
   };
 
@@ -816,7 +900,9 @@
     h += '<div class="record-detail">金额 <span>¥' + fmtMoney(r.amount) + '</span></div>';
     h += '<div class="record-detail">电量 <span>' + fmtFuel(r.kwh) + ' kWh</span></div>';
     h += '<div class="record-detail">电价 <span>¥' + fmtMoney(r.pricePerKwh) + '/kWh</span></div>';
-    if (r.socStart || r.socEnd) h += '<div class="record-detail">电量区间 <span>' + (r.socStart || 0) + '% → ' + (r.socEnd || 0) + '%</span></div>';
+    h += '<div class="record-detail">类型 <span>' + escHtml(r.chargeType || '未填') + '</span></div>';
+    h += '<div class="record-detail">平台 <span>' + escHtml(r.chargeProvider || '未填') + '</span></div>';
+    if (r.socStart != null || r.socEnd != null) h += '<div class="record-detail">SOC <span>' + (r.socStart != null ? r.socStart : '-') + '% → ' + (r.socEnd != null ? r.socEnd : '-') + '%</span></div>';
     h += '</div>';
     if (r.note) h += '<div class="record-note">' + escHtml(r.note) + '</div>';
     h += '</div>';
@@ -825,33 +911,49 @@
 
   function showChargeForm(editRecord) {
     var r = editRecord || {};
+    var odo = r.odometer != null ? r.odometer : getSuggestedOdometer();
+    var type = r.chargeType || pref('chargeType', '快充');
+    var provider = r.chargeProvider || pref('chargeProvider', '国家电网');
     var h = '<div class="modal-header"><h2>' + icon('charge') + (editRecord ? '编辑充电记录' : '新增充电记录') + '</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
     h += '<div class="modal-body">';
     h += '<div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="charge-date" value="' + (r.date || today()) + '"></div>';
-    h += '<div class="form-group"><label class="form-label">当前总里程 (km)</label><input type="number" class="form-input" id="charge-odo" placeholder="例如 28600" step="0.1" min="0" value="' + (r.odometer || '') + '" inputmode="decimal"></div>';
+    h += '<div class="form-group"><label class="form-label">当前总里程 (km)</label><input type="number" class="form-input" id="charge-odo" placeholder="例如 28600" step="0.1" min="0" value="' + (odo || '') + '" inputmode="decimal"></div>';
     h += '<div class="form-group"><label class="form-label">充电金额 (元)</label><input type="number" class="form-input charge-calc" id="charge-amount" placeholder="例如 48.5" step="0.01" min="0" value="' + (r.amount || '') + '" inputmode="decimal"></div>';
     h += '<div class="form-group"><label class="form-label">充电度数 (kWh)</label><input type="number" class="form-input charge-calc" id="charge-kwh" placeholder="例如 36.2" step="0.01" min="0" value="' + (r.kwh || '') + '" inputmode="decimal"></div>';
     h += '<div class="form-group"><label class="form-label">电价 (元/kWh)</label><input type="number" class="form-input charge-calc" id="charge-price" placeholder="自动计算或手动输入" step="0.01" min="0" value="' + (r.pricePerKwh || '') + '" inputmode="decimal"></div>';
     h += '<div class="form-hint">填写金额和度数可自动计算电价；填写度数和电价可自动计算金额。</div>';
-    h += '<div class="form-row"><div class="form-group"><label class="form-label">充电类型</label><select class="form-input" id="charge-type"><option value="快充"' + (r.chargeType === '快充' ? ' selected' : '') + '>快充</option><option value="慢充"' + (r.chargeType === '慢充' ? ' selected' : '') + '>慢充</option><option value="家充"' + (r.chargeType === '家充' ? ' selected' : '') + '>家充</option><option value="其他"' + (r.chargeType === '其他' ? ' selected' : '') + '>其他</option></select></div>';
-    h += '<div class="form-group"><label class="form-label">起始电量 (%)</label><input type="number" class="form-input" id="charge-soc-start" min="0" max="100" step="1" value="' + (r.socStart || '') + '" inputmode="numeric"></div></div>';
-    h += '<div class="form-group"><label class="form-label">结束电量 (%)</label><input type="number" class="form-input" id="charge-soc-end" min="0" max="100" step="1" value="' + (r.socEnd || '') + '" inputmode="numeric"></div>';
-    h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="charge-note" placeholder="例如：高速服务区快充" value="' + (r.note || '') + '"></div>';
+    h += '<details class="more-fields"><summary>更多信息</summary>';
+    h += '<div class="form-row"><div class="form-group"><label class="form-label">充电类型</label><select class="form-input" id="charge-type">' + selectOptions(['家充', '快充', '慢充', '免费充电', '其他'], type) + '</select></div>';
+    h += '<div class="form-group"><label class="form-label">充电平台</label><select class="form-input" id="charge-provider">' + selectOptions(['特来电', '国家电网', '星星充电', '小桔充电', '蔚来', '特斯拉', '家用电', '其他'], provider) + '</select></div></div>';
+    h += '<div class="form-row"><div class="form-group"><label class="form-label">起始电量 (%)</label><input type="number" class="form-input charge-soc" id="charge-soc-start" min="0" max="100" step="1" value="' + (r.socStart != null ? r.socStart : '') + '" inputmode="numeric"></div>';
+    h += '<div class="form-group"><label class="form-label">结束电量 (%)</label><input type="number" class="form-input charge-soc" id="charge-soc-end" min="0" max="100" step="1" value="' + (r.socEnd != null ? r.socEnd : '') + '" inputmode="numeric"></div></div>';
+    h += '<div class="form-hint" id="charge-soc-delta">补电百分比：—</div>';
+    h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="charge-note" placeholder="例如：高速服务区快充" value="' + escHtml(r.note || '') + '"></div>';
+    h += '</details>';
     h += '<div class="modal-footer">';
     if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
     h += '<button class="btn btn-primary btn-block" onclick="window._saveCharge(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
     setTimeout(function () {
-      $$('.charge-calc').forEach(function (inp) { inp.addEventListener('input', autoCalcCharge); });
+      $$('.charge-calc').forEach(function (inp) { inp.addEventListener('input', function () { autoCalcCharge(inp.id); }); });
+      $$('.charge-soc').forEach(function (inp) { inp.addEventListener('input', updateSocDelta); });
+      updateSocDelta();
     }, 100);
   }
 
-  function autoCalcCharge() {
+  function autoCalcCharge(changedId) {
     var amtEl = $('#charge-amount'), kwhEl = $('#charge-kwh'), prcEl = $('#charge-price');
     if (!amtEl || !kwhEl || !prcEl) return;
     var amt = parseFloat(amtEl.value), kwh = parseFloat(kwhEl.value), prc = parseFloat(prcEl.value);
-    if (amtEl.value && kwhEl.value && !isNaN(amt) && !isNaN(kwh) && kwh > 0) prcEl.value = fmtMoney(amt / kwh);
-    else if (kwhEl.value && prcEl.value && !isNaN(kwh) && !isNaN(prc)) amtEl.value = fmtMoney(kwh * prc);
+    if (changedId !== 'charge-price' && amtEl.value && kwhEl.value && !isNaN(amt) && !isNaN(kwh) && kwh > 0) prcEl.value = fmtMoney(amt / kwh);
+    else if (changedId !== 'charge-amount' && kwhEl.value && prcEl.value && !isNaN(kwh) && !isNaN(prc)) amtEl.value = fmtMoney(kwh * prc);
+    else if (changedId !== 'charge-kwh' && amtEl.value && prcEl.value && !isNaN(amt) && !isNaN(prc) && prc > 0) kwhEl.value = fmtFuel(amt / prc);
+  }
+
+  function updateSocDelta() {
+    var s = optionalNumber('#charge-soc-start'), e = optionalNumber('#charge-soc-end');
+    var el = $('#charge-soc-delta');
+    if (el) el.textContent = s != null && e != null ? '补电百分比：' + (e - s) + '%' : '补电百分比：—';
   }
 
   window._saveCharge = function (editId) {
@@ -861,15 +963,27 @@
     var kwh = parseFloat($('#charge-kwh').value) || 0;
     var prc = parseFloat($('#charge-price').value) || 0;
     var type = $('#charge-type').value;
-    var socStart = parseFloat($('#charge-soc-start').value) || 0;
-    var socEnd = parseFloat($('#charge-soc-end').value) || 0;
+    var provider = $('#charge-provider') ? $('#charge-provider').value : '';
+    var socStart = optionalNumber('#charge-soc-start');
+    var socEnd = optionalNumber('#charge-soc-end');
     var note = $('#charge-note').value.trim();
+    var free = type === '免费充电';
     if (!date) { alert('请选择日期'); return; }
     if (isNaN(odo) || odo < 0) { alert('请输入有效的里程数'); return; }
-    if (amt === 0 && kwh === 0) { alert('请至少填写金额或度数'); return; }
-    var record = { id: editId || genId(), date: date, odometer: odo, amount: amt, kwh: kwh, pricePerKwh: prc, chargeType: type, socStart: socStart, socEnd: socEnd, note: note };
+    if (!free && amt <= 0) { alert('充电金额必须大于 0'); return; }
+    if (kwh <= 0) { alert('充电度数必须大于 0'); return; }
+    if (prc < 0) { alert('电价必须大于等于 0'); return; }
+    if (socStart != null && (socStart < 0 || socStart > 100)) { alert('开始电量必须在 0-100 之间'); return; }
+    if (socEnd != null && (socEnd < 0 || socEnd > 100)) { alert('结束电量必须在 0-100 之间'); return; }
+    if (socStart != null && socEnd != null && socEnd < socStart) { alert('结束电量不能小于开始电量'); return; }
+    if (prc > 3 && !confirm('电价看起来偏高，是否继续保存？')) return;
+    var maxOdo = maxHistoricalOdometer(editId);
+    if (maxOdo != null && odo < maxOdo && !confirm('当前里程小于历史记录最大里程，是否继续保存？')) return;
+    var record = { id: editId || genId(), date: date, odometer: odo, amount: free ? 0 : Number(fmtMoney(amt)), kwh: Number(fmtFuel(kwh)), pricePerKwh: free ? 0 : Number(fmtMoney(prc)), chargeType: type, chargeProvider: provider, socStart: socStart, socEnd: socEnd, note: note };
     if (editId) updateChargeRecord(editId, record);
     else addChargeRecord(record);
+    savePrefs({ chargeType: type, chargeProvider: provider });
+    updateVehicleOdometerIfNeeded(odo);
     closeModal(); refreshCurrentPage();
   };
 
@@ -896,16 +1010,23 @@
   }
 
   function renderTripItem(r) {
+    var parkingFee = Number(r.parkingFee) || 0;
+    var tollFee = Number(r.tollFee) || 0;
+    var totalCost = r.totalCost != null && r.totalCost !== '' ? Number(r.totalCost) : (Number(r.estimatedCost) || 0) + parkingFee + tollFee;
+    var extras = [r.purpose, r.isHighway ? '高速' : '', r.acUsed ? '空调' : '', r.passengers ? r.passengers + '人' : ''].filter(Boolean);
     var h = '<div class="record-item" data-id="' + r.id + '">';
     h += '<div class="record-header"><span class="record-date">' + r.date;
-    if (r.purpose) h += ' · ' + escHtml(r.purpose);
+    if (r.roadType) h += ' · ' + escHtml(r.roadType);
+    else if (r.purpose) h += ' · ' + escHtml(r.purpose);
     h += '</span><div class="record-actions"><button class="record-edit" data-action="edit-trip" data-id="' + r.id + '">编辑</button><button class="record-delete" data-action="delete-trip" data-id="' + r.id + '">删除</button></div></div>';
     h += '<div class="record-details">';
     h += '<div class="record-detail">名称 <span>' + escHtml(r.name || '未命名') + '</span></div>';
     h += '<div class="record-detail">距离 <span>' + fmtDist(r.distance) + ' km</span></div>';
-    h += '<div class="record-detail">起 <span>' + fmtDist(r.startOdometer) + ' km</span></div>';
-    h += '<div class="record-detail">止 <span>' + fmtDist(r.endOdometer) + ' km</span></div>';
-    if (r.estimatedCost) h += '<div class="record-detail" style="grid-column:1/-1">预估油费 <span>¥' + fmtMoney(r.estimatedCost) + '</span></div>';
+    h += '<div class="record-detail">预估能耗费 <span>' + (r.estimatedCost ? '¥' + fmtMoney(r.estimatedCost) : '数据不足') + '</span></div>';
+    h += '<div class="record-detail">停车费 <span>¥' + fmtMoney(parkingFee) + '</span></div>';
+    h += '<div class="record-detail">过路费 <span>¥' + fmtMoney(tollFee) + '</span></div>';
+    h += '<div class="record-detail">总成本 <span>¥' + fmtMoney(totalCost) + '</span></div>';
+    if (extras.length) h += '<div class="record-detail" style="grid-column:1/-1">补充 <span>' + extras.map(escHtml).join(' · ') + '</span></div>';
     h += '</div>';
     if (r.note) h += '<div class="record-note">' + escHtml(r.note) + '</div>';
     h += '</div>';
@@ -914,23 +1035,40 @@
 
   function showTripForm(editRecord) {
     var r = editRecord || {};
-    var cpk = getCostPerKm();
+    var cpk = getCurrentEnergyCostPerKm();
+    var startDefault = r.startOdometer != null ? r.startOdometer : getSuggestedTripStart();
+    var purposeValue = r.purpose != null ? r.purpose : pref('purpose', '');
+    var roadTypeValue = r.roadType != null ? r.roadType : pref('roadType', '混合');
+    var parkingFee = r.parkingFee != null ? r.parkingFee : '';
+    var tollFee = r.tollFee != null ? r.tollFee : '';
+    var totalCost = r.totalCost != null ? r.totalCost : '';
     var h = '<div class="modal-header"><h2>' + icon('route') + (editRecord ? '编辑行程记录' : '新增行程记录') + '</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
     h += '<div class="modal-body">';
     h += '<div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="trip-date" value="' + (r.date || today()) + '"></div>';
-    h += '<div class="form-group"><label class="form-label">行程名称</label><input type="text" class="form-input" id="trip-name" placeholder="例如：去公司、周末出游" value="' + (r.name || '') + '"></div>';
-    h += '<div class="form-row"><div class="form-group"><label class="form-label">起始里程 (km)</label><input type="number" class="form-input trip-odo" id="trip-start" placeholder="例如 35620" step="0.1" min="0" value="' + (r.startOdometer || '') + '" inputmode="decimal"></div>';
-    h += '<div class="form-group"><label class="form-label">结束里程 (km)</label><input type="number" class="form-input trip-odo" id="trip-end" placeholder="例如 35648" step="0.1" min="0" value="' + (r.endOdometer || '') + '" inputmode="decimal"></div></div>';
-    h += '<div class="form-group"><label class="form-label">行驶距离 (km)</label><input type="number" class="form-input" id="trip-distance" placeholder="自动计算" step="0.1" min="0" value="' + (r.distance || '') + '" inputmode="decimal" readonly></div>';
-    h += '<div class="form-group"><label class="form-label">用途</label><select class="form-input" id="trip-purpose"><option value="">请选择</option><option value="上班"' + (r.purpose === '上班' ? ' selected' : '') + '>上班</option><option value="商务"' + (r.purpose === '商务' ? ' selected' : '') + '>商务</option><option value="出游"' + (r.purpose === '出游' ? ' selected' : '') + '>出游</option><option value="购物"' + (r.purpose === '购物' ? ' selected' : '') + '>购物</option><option value="接送"' + (r.purpose === '接送' ? ' selected' : '') + '>接送</option><option value="其他"' + (r.purpose === '其他' ? ' selected' : '') + '>其他</option></select></div>';
-    h += '<div class="form-group"><label class="form-label">预估油费 (元)</label><input type="number" class="form-input" id="trip-cost" placeholder="' + (cpk != null ? '约 ¥' + fmtMoney(cpk) + '/km' : '需要足够数据才能估算') + '" step="0.01" min="0" value="' + (r.estimatedCost || '') + '" inputmode="decimal" readonly></div>';
-    h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="trip-note" placeholder="例如：市区拥堵" value="' + (r.note || '') + '"></div>';
+    h += '<div class="form-group"><label class="form-label">行程名称</label><input type="text" class="form-input" id="trip-name" placeholder="例如：去公司、周末出游" value="' + escHtml(r.name || '') + '"></div>';
+    h += '<div class="form-row"><div class="form-group"><label class="form-label">起始里程 (km)</label><input type="number" class="form-input trip-odo" id="trip-start" placeholder="例如 35620" step="0.1" min="0" value="' + (startDefault != null ? startDefault : '') + '" inputmode="decimal"></div>';
+    h += '<div class="form-group"><label class="form-label">结束里程 (km)</label><input type="number" class="form-input trip-odo" id="trip-end" placeholder="例如 35648" step="0.1" min="0" value="' + (r.endOdometer != null ? r.endOdometer : '') + '" inputmode="decimal"></div></div>';
+    h += '<div class="form-group"><label class="form-label">行驶距离 (km)</label><input type="number" class="form-input" id="trip-distance" placeholder="自动计算" step="0.1" min="0" value="' + (r.distance != null ? r.distance : '') + '" inputmode="decimal" readonly></div>';
+    h += '<div class="form-group"><label class="form-label">预估能源费用 (元)</label><input type="number" class="form-input trip-cost-calc" id="trip-cost" placeholder="' + (cpk != null ? '约 ¥' + fmtMoney(cpk) + '/km' : '数据不足，可手动填写') + '" step="0.01" min="0" value="' + (r.estimatedCost != null && r.estimatedCost !== '' ? r.estimatedCost : '') + '" inputmode="decimal"></div>';
+    h += '<details class="more-fields"><summary>更多信息</summary>';
+    h += '<div class="form-group"><label class="form-label">用途</label><select class="form-input" id="trip-purpose">' + selectOptions(['', '上班', '商务', '出游', '购物', '接送', '其他'], purposeValue) + '</select></div>';
+    h += '<div class="form-group"><label class="form-label">路况</label><select class="form-input" id="trip-road-type">' + selectOptions(['市区', '高速', '郊区', '拥堵', '混合'], roadTypeValue) + '</select></div>';
+    h += '<div class="form-row"><label class="form-check"><input type="checkbox" id="trip-highway"' + (r.isHighway ? ' checked' : '') + '><span>包含高速</span></label><label class="form-check"><input type="checkbox" id="trip-ac"' + (r.acUsed ? ' checked' : '') + '><span>开空调</span></label></div>';
+    h += '<div class="form-row"><div class="form-group"><label class="form-label">乘坐人数</label><input type="number" class="form-input" id="trip-passengers" step="1" min="0" value="' + (r.passengers != null ? r.passengers : '') + '" inputmode="numeric"></div>';
+    h += '<div class="form-group"><label class="form-label">停车费 (元)</label><input type="number" class="form-input trip-extra-cost" id="trip-parking" step="0.01" min="0" value="' + parkingFee + '" inputmode="decimal"></div></div>';
+    h += '<div class="form-row"><div class="form-group"><label class="form-label">过路费 (元)</label><input type="number" class="form-input trip-extra-cost" id="trip-toll" step="0.01" min="0" value="' + tollFee + '" inputmode="decimal"></div>';
+    h += '<div class="form-group"><label class="form-label">本趟总成本 (元)</label><input type="number" class="form-input" id="trip-total-cost" placeholder="自动计算" step="0.01" min="0" value="' + totalCost + '" inputmode="decimal" readonly></div></div>';
+    h += '<div class="form-group"><label class="form-label">备注</label><input type="text" class="form-input" id="trip-note" placeholder="例如：市区拥堵、多人出行" value="' + escHtml(r.note || '') + '"></div>';
+    h += '</details>';
     h += '<div class="modal-footer">';
     if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
     h += '<button class="btn btn-primary btn-block" onclick="window._saveTrip(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
     setTimeout(function () {
       $$('.trip-odo').forEach(function (inp) { inp.addEventListener('input', autoCalcDistance); });
+      $$('.trip-cost-calc, .trip-extra-cost').forEach(function (inp) { inp.addEventListener('input', autoCalcTripTotal); });
+      autoCalcDistance();
+      autoCalcTripTotal();
     }, 100);
   }
 
@@ -941,27 +1079,70 @@
     if (!isNaN(s) && !isNaN(e) && e >= s) {
       var dist = e - s;
       dEl.value = fmtDist(dist);
-      var cpk = getCostPerKm();
+      var cpk = getCurrentEnergyCostPerKm();
       if (cpk != null && cEl) cEl.value = fmtMoney(dist * cpk);
+      autoCalcTripTotal();
     }
+  }
+
+  function autoCalcTripTotal() {
+    var cEl = $('#trip-cost'), pEl = $('#trip-parking'), tEl = $('#trip-toll'), totalEl = $('#trip-total-cost');
+    if (!totalEl) return;
+    var cost = cEl && cEl.value !== '' ? parseFloat(cEl.value) : 0;
+    var parking = pEl && pEl.value !== '' ? parseFloat(pEl.value) : 0;
+    var toll = tEl && tEl.value !== '' ? parseFloat(tEl.value) : 0;
+    if (isNaN(cost)) cost = 0;
+    if (isNaN(parking)) parking = 0;
+    if (isNaN(toll)) toll = 0;
+    totalEl.value = fmtMoney(cost + parking + toll);
   }
 
   window._saveTrip = function (editId) {
     var date = $('#trip-date').value;
     var name = $('#trip-name').value.trim();
-    var startOdo = parseFloat($('#trip-start').value) || 0;
-    var endOdo = parseFloat($('#trip-end').value) || 0;
-    var dist = parseFloat($('#trip-distance').value) || 0;
+    var startOdo = parseFloat($('#trip-start').value);
+    var endOdo = parseFloat($('#trip-end').value);
+    var dist = parseFloat($('#trip-distance').value);
     var purpose = $('#trip-purpose').value;
     var cost = parseFloat($('#trip-cost').value) || 0;
+    var roadType = $('#trip-road-type').value;
+    var isHighway = $('#trip-highway').checked;
+    var acUsed = $('#trip-ac').checked;
+    var passengers = optionalNumber('#trip-passengers');
+    var parkingFee = parseFloat($('#trip-parking').value) || 0;
+    var tollFee = parseFloat($('#trip-toll').value) || 0;
+    var totalCost = parseFloat($('#trip-total-cost').value);
     var note = $('#trip-note').value.trim();
     if (!date) { alert('请选择日期'); return; }
-    if (dist <= 0) { alert('行驶距离必须大于 0，请填写起止里程'); return; }
-    if (editId) {
-      updateTripRecord(editId, { id: editId, date: date, name: name, startOdometer: startOdo, endOdometer: endOdo, distance: dist, purpose: purpose, estimatedCost: cost, note: note });
-    } else {
-      addTripRecord({ id: genId(), date: date, name: name, startOdometer: startOdo, endOdometer: endOdo, distance: dist, purpose: purpose, estimatedCost: cost, note: note });
-    }
+    if (!name) { alert('请填写行程名称'); return; }
+    if (isNaN(startOdo) || isNaN(endOdo) || startOdo < 0 || endOdo < 0) { alert('起始里程和结束里程必须大于等于 0'); return; }
+    if (endOdo < startOdo) { alert('结束里程不能小于起始里程'); return; }
+    if (isNaN(dist) || dist <= 0) { alert('行驶距离必须大于 0，请填写起止里程'); return; }
+    if (parkingFee < 0 || tollFee < 0) { alert('停车费和过路费不能小于 0'); return; }
+    if (dist > 1000 && !confirm('本次行程距离较长，是否继续保存？')) return;
+    totalCost = isNaN(totalCost) ? cost + parkingFee + tollFee : totalCost;
+    var record = {
+      id: editId || genId(),
+      date: date,
+      name: name,
+      startOdometer: Number(fmtDist(startOdo)),
+      endOdometer: Number(fmtDist(endOdo)),
+      distance: Number(fmtDist(dist)),
+      purpose: purpose,
+      estimatedCost: Number(fmtMoney(cost)),
+      roadType: roadType,
+      isHighway: isHighway,
+      acUsed: acUsed,
+      passengers: passengers,
+      parkingFee: Number(fmtMoney(parkingFee)),
+      tollFee: Number(fmtMoney(tollFee)),
+      totalCost: Number(fmtMoney(totalCost)),
+      note: note
+    };
+    if (editId) updateTripRecord(editId, record);
+    else addTripRecord(record);
+    savePrefs({ purpose: purpose, roadType: roadType });
+    updateVehicleOdometerIfNeeded(endOdo);
     closeModal(); refreshCurrentPage();
   };
 

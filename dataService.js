@@ -6,7 +6,8 @@
     tripRecords: 'tripRecords',
     chargeRecords: 'chargeRecords',
     energyMode: 'energyMode',
-    vehicleProfile: 'vehicleProfile'
+    vehicleProfile: 'vehicleProfile',
+    userPreferences: 'userPreferences'
   };
 
   var ENERGY_MODES = ['fuel', 'electric', 'hybrid'];
@@ -77,6 +78,21 @@
 
   function updateVehicleProfile(partial) {
     return saveVehicleProfile(Object.assign({}, getVehicleProfile(), partial || {}, { updatedAt: new Date().toISOString() }));
+  }
+
+  function getUserPreferences() {
+    var prefs = readJson(STORAGE_KEYS.userPreferences, {});
+    return prefs && typeof prefs === 'object' && !Array.isArray(prefs) ? Object.assign({}, prefs) : {};
+  }
+
+  function saveUserPreferences(preferences) {
+    var prefs = preferences && typeof preferences === 'object' && !Array.isArray(preferences) ? Object.assign({}, preferences) : {};
+    writeJson(STORAGE_KEYS.userPreferences, prefs);
+    return prefs;
+  }
+
+  function updateUserPreferences(partial) {
+    return saveUserPreferences(Object.assign({}, getUserPreferences(), partial || {}));
   }
 
   function loadData() {
@@ -175,6 +191,7 @@
     normalized.exportedAt = data.exportedAt || null;
     normalized.energyMode = normalizeEnergyMode(data.energyMode || 'fuel');
     normalized.vehicleProfile = normalizeVehicleProfile(data.vehicleProfile || { mode: normalized.energyMode });
+    normalized.userPreferences = data.userPreferences && typeof data.userPreferences === 'object' && !Array.isArray(data.userPreferences) ? Object.assign({}, data.userPreferences) : {};
     return normalized;
   }
 
@@ -182,6 +199,7 @@
     var normalized = validateImportData(data);
     setEnergyMode(normalized.energyMode);
     saveVehicleProfile(normalized.vehicleProfile);
+    saveUserPreferences(normalized.userPreferences);
     return saveData(normalized);
   }
 
@@ -192,6 +210,7 @@
       exportedAt: new Date().toISOString(),
       energyMode: getEnergyMode(),
       vehicleProfile: getVehicleProfile(),
+      userPreferences: getUserPreferences(),
       fuelRecords: data.fuelRecords,
       tripRecords: data.tripRecords,
       chargeRecords: data.chargeRecords
@@ -253,6 +272,9 @@
     getVehicleProfile: getVehicleProfile,
     saveVehicleProfile: saveVehicleProfile,
     updateVehicleProfile: updateVehicleProfile,
+    getUserPreferences: getUserPreferences,
+    saveUserPreferences: saveUserPreferences,
+    updateUserPreferences: updateUserPreferences,
     addFuelRecord: addFuelRecord,
     updateFuelRecord: updateFuelRecord,
     deleteFuelRecord: deleteFuelRecord,

@@ -1044,7 +1044,40 @@ select.form-input {
 .form-hint { font-size: 0.7rem; color: var(--text-tertiary); margin-top: -8px; margin-bottom: 8px; }
 .form-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .form-check input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
-.form-check label { font-size: 0.82rem; color: var(--text-secondary); }
+.form-check label,
+.form-check span { font-size: 0.82rem; color: var(--text-secondary); }
+.more-fields {
+  margin: 4px 0 18px;
+  padding: 4px 0 0;
+  border-top: 1px solid var(--border);
+}
+.more-fields summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 2px 14px;
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 650;
+  -webkit-tap-highlight-color: transparent;
+}
+.more-fields summary::-webkit-details-marker { display: none; }
+.more-fields summary::after {
+  content: '+';
+  float: right;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background: var(--card-bg-strong);
+  transition: transform 0.22s ease;
+}
+.more-fields[open] summary::after { transform: rotate(45deg); }
+.more-fields[open] {
+  padding-bottom: 2px;
+}
 
 /* ---- Confirm Dialog ---- */
 .confirm-dialog {
