@@ -171,6 +171,8 @@
     }
     data.chargeRecords = Array.isArray(data.chargeRecords) ? data.chargeRecords : [];
     var normalized = normalizeData(data);
+    normalized.version = data.version || null;
+    normalized.exportedAt = data.exportedAt || null;
     normalized.energyMode = normalizeEnergyMode(data.energyMode || 'fuel');
     normalized.vehicleProfile = normalizeVehicleProfile(data.vehicleProfile || { mode: normalized.energyMode });
     return normalized;
@@ -196,16 +198,34 @@
     };
   }
 
+  function createExportText() {
+    return JSON.stringify(createExportData(), null, 2);
+  }
+
   function downloadExport(filename) {
-    var blob = new Blob([JSON.stringify(createExportData(), null, 2)], { type: 'application/json' });
+    var text = createExportText();
+    var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
     var url = URL.createObjectURL(blob);
-    var link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    try {
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      return true;
+    } catch (error) {
+      try {
+        window.open(url, '_blank', 'noopener');
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        return true;
+      } catch (openError) {
+        URL.revokeObjectURL(url);
+        return false;
+      }
+    }
   }
 
   function readImportFile(file) {
@@ -246,6 +266,7 @@
     validateImportData: validateImportData,
     importData: importData,
     createExportData: createExportData,
+    createExportText: createExportText,
     downloadExport: downloadExport,
     readImportFile: readImportFile
   };

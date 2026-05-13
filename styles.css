@@ -829,6 +829,38 @@ html[data-theme="dark"] .theme-seg-btn.active {
   white-space: pre;
 }
 
+.backup-json-textarea {
+  min-height: 280px;
+}
+
+.backup-preview {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card-bg-strong);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.backup-preview.hidden {
+  display: none;
+}
+
+.backup-preview strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.settings-help {
+  margin: -2px 2px 12px;
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
 /* ---- Settings Buttons ---- */
 .settings-btn-row {
   display: flex;

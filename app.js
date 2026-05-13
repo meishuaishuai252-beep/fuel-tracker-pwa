@@ -26,6 +26,7 @@
   var confirmCancel = $('#confirm-cancel');
 
   var confirmCallback = null;
+  var pendingPasteImportData = null;
 
   // ==================== Theme ====================
   function getThemeMode() {
@@ -1077,10 +1078,12 @@
 
     // Backup
     h += '<div class="settings-section"><h3>数据备份</h3>';
+    h += '<p class="settings-help">安卓 PWA 或部分浏览器可能限制文件导入/下载。若文件方式失败，请优先使用复制备份文本和粘贴备份恢复。</p>';
     h += '<div class="settings-btn-row">';
+    h += '<button class="btn btn-primary btn-block" onclick="window._copyBackupText()">' + icon('export') + '复制备份文本</button>';
+    h += '<button class="btn btn-outline btn-block" onclick="window._showPasteImport()">' + icon('import') + '粘贴备份恢复</button>';
     h += '<button class="btn btn-outline btn-block" onclick="window._exportData()">' + icon('export') + '导出全部数据 (JSON)</button>';
     h += '<button class="btn btn-outline btn-block" onclick="window._importData()">' + icon('import') + '从 JSON 文件导入</button>';
-    h += '<button class="btn btn-outline btn-block" onclick="window._showPasteImport()">' + icon('import') + '粘贴 JSON 导入</button>';
     h += '</div>';
     h += '<input type="file" id="import-file-input" accept=".json,application/json,text/json,text/plain,*/*" style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;opacity:0" onchange="window._handleImport(event)">';
     h += '</div>';
@@ -1097,10 +1100,64 @@
   }
 
   window._exportData = function () {
-    dataService.downloadExport('油耗记录备份_' + today() + '.json');
+    var ok = dataService.downloadExport('油耗记录备份_' + today() + '.json');
+    if (!ok) {
+      alert('文件下载失败，请使用“复制备份文本”。');
+      showManualBackupText('自动下载失败，请手动复制下方备份文本。');
+    }
   };
 
-  window._importData = function () { var inp = $('#import-file-input'); if (inp) inp.click(); };
+  window._importData = function () {
+    var inp = $('#import-file-input');
+    if (!inp) {
+      alert('无法打开文件选择器，请使用“粘贴备份恢复”。');
+      return;
+    }
+    try {
+      inp.click();
+    } catch (e) {
+      alert('无法打开文件选择器，请使用“粘贴备份恢复”。');
+    }
+  };
+
+  function getBackupText() {
+    return dataService.createExportText ? dataService.createExportText() : JSON.stringify(dataService.createExportData(), null, 2);
+  }
+
+  window._copyBackupText = function () {
+    var text = getBackupText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(function () {
+          alert('备份文本已复制，可粘贴到微信、备忘录或文件中保存。');
+        })
+        .catch(function () {
+          showManualBackupText('自动复制失败，请手动复制下方备份文本。');
+        });
+    } else {
+      showManualBackupText('当前浏览器不支持自动复制，请手动复制下方备份文本。');
+    }
+  };
+
+  function showManualBackupText(message) {
+    var text = getBackupText();
+    var h = '<div class="modal-header"><h2>' + icon('export') + '手动复制备份</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
+    h += '<div class="modal-body">';
+    h += '<div class="form-hint">' + message + '</div>';
+    h += '<div class="form-group"><label class="form-label">完整备份 JSON</label><textarea class="form-input import-json-textarea backup-json-textarea" id="backup-json-text" readonly spellcheck="false"></textarea></div>';
+    h += '<div class="modal-footer"><button class="btn btn-outline" onclick="window._selectBackupText()">全选文本</button><button class="btn btn-primary btn-block" onclick="window._closeModal()">关闭</button></div>';
+    openModal(h);
+    var ta = $('#backup-json-text');
+    if (ta) ta.value = text;
+  }
+
+  window._selectBackupText = function () {
+    var ta = $('#backup-json-text');
+    if (!ta) return;
+    ta.focus();
+    ta.select();
+    if (ta.setSelectionRange) ta.setSelectionRange(0, ta.value.length);
+  };
 
   function applyImportedDataWithConfirm(data) {
     showConfirm('即将导入 ' + data.fuelRecords.length + ' 条加油记录、' + data.chargeRecords.length + ' 条充电记录和 ' + data.tripRecords.length + ' 条行程记录。\n\n⚠ 当前数据将被覆盖，是否继续？', function () {
@@ -1122,29 +1179,64 @@
       .then(function (data) {
         applyImportedDataWithConfirm(data);
       })
-      .catch(function () { alert('文件解析失败，请检查文件格式'); });
+      .catch(function () { alert('文件读取或解析失败，请使用“粘贴备份恢复”，并确认粘贴的是完整 JSON。'); });
     event.target.value = '';
   };
 
   window._showPasteImport = function () {
-    var h = '<div class="modal-header"><h2>' + icon('import') + '粘贴 JSON 导入</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
+    pendingPasteImportData = null;
+    var h = '<div class="modal-header"><h2>' + icon('import') + '粘贴备份恢复</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
     h += '<div class="modal-body">';
-    h += '<div class="form-hint">安卓手机如果无法选择 .json 文件，可以先打开备份文件，复制全部内容，再粘贴到这里导入。</div>';
-    h += '<div class="form-group"><label class="form-label">JSON 内容</label><textarea class="form-input import-json-textarea" id="import-json-text" placeholder="{ ... }" spellcheck="false"></textarea></div>';
-    h += '<div class="modal-footer"><button class="btn btn-outline" onclick="window._closeModal()">取消</button><button class="btn btn-primary btn-block" onclick="window._importFromText()">解析并导入</button></div>';
+    h += '<div class="form-hint">请粘贴之前复制的备份 JSON 文本。安卓手机无法上传文件时，推荐使用这个方式恢复数据。</div>';
+    h += '<div class="form-group"><label class="form-label">备份 JSON 文本</label><textarea class="form-input import-json-textarea" id="import-json-text" placeholder="请粘贴之前复制的备份 JSON 文本" spellcheck="false"></textarea></div>';
+    h += '<div class="backup-preview hidden" id="backup-preview"></div>';
+    h += '<div class="modal-footer"><button class="btn btn-outline" onclick="window._closeModal()">取消</button><button class="btn btn-outline" onclick="window._checkPasteBackup()">检查备份</button><button class="btn btn-primary btn-block" onclick="window._restorePasteBackup()">导入恢复</button></div>';
     openModal(h);
   };
 
-  window._importFromText = function () {
+  function parsePasteBackup() {
     var textEl = $('#import-json-text');
     var text = textEl ? textEl.value.trim() : '';
-    if (!text) { alert('请先粘贴 JSON 内容'); return; }
+    if (!text) throw new Error('empty');
+    var raw = JSON.parse(text);
+    return dataService.validateImportData ? dataService.validateImportData(raw) : raw;
+  }
+
+  function renderBackupPreview(data) {
+    var preview = $('#backup-preview');
+    if (!preview) return;
+    preview.classList.remove('hidden');
+    preview.innerHTML = '<strong>备份检查通过</strong>' +
+      '<span>加油记录：' + data.fuelRecords.length + ' 条</span>' +
+      '<span>行程记录：' + data.tripRecords.length + ' 条</span>' +
+      '<span>充电记录：' + data.chargeRecords.length + ' 条</span>' +
+      '<span>导出时间：' + (data.exportedAt || '未提供') + '</span>' +
+      '<span>版本：' + (data.version || '旧版') + '</span>';
+  }
+
+  window._checkPasteBackup = function () {
     try {
-      var data = dataService.validateImportData ? dataService.validateImportData(JSON.parse(text)) : JSON.parse(text);
+      pendingPasteImportData = parsePasteBackup();
+      renderBackupPreview(pendingPasteImportData);
+    } catch (e) {
+      pendingPasteImportData = null;
+      alert('备份文本格式不正确，请确认粘贴的是完整 JSON。');
+    }
+  };
+
+  window._restorePasteBackup = function () {
+    try {
+      var data = pendingPasteImportData || parsePasteBackup();
+      pendingPasteImportData = data;
+      renderBackupPreview(data);
       applyImportedDataWithConfirm(data);
     } catch (e) {
-      alert('JSON 解析失败，请检查是否复制完整');
+      alert('备份文本格式不正确，请确认粘贴的是完整 JSON。');
     }
+  };
+
+  window._importFromText = function () {
+    window._restorePasteBackup();
   };
 
   window._clearAllData = function () {
