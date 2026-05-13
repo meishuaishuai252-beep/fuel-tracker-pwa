@@ -1078,12 +1078,16 @@
 
     // Backup
     h += '<div class="settings-section"><h3>数据备份</h3>';
-    h += '<p class="settings-help">安卓 PWA 或部分浏览器可能限制文件导入/下载。若文件方式失败，请优先使用复制备份文本和粘贴备份恢复。</p>';
+    h += '<p class="settings-help">安卓 PWA 中，文件导入导出可能受浏览器限制。建议优先使用分享备份。</p>';
     h += '<div class="settings-btn-row">';
-    h += '<button class="btn btn-primary btn-block" onclick="window._copyBackupText()">' + icon('export') + '复制备份文本</button>';
-    h += '<button class="btn btn-outline btn-block" onclick="window._showPasteImport()">' + icon('import') + '粘贴备份恢复</button>';
+    h += '<div class="backup-method-title">推荐方式</div>';
+    h += '<button class="btn btn-primary btn-block" onclick="window._shareBackup()">' + icon('export') + '分享备份</button>';
+    h += '<div class="backup-method-title">文件方式</div>';
     h += '<button class="btn btn-outline btn-block" onclick="window._exportData()">' + icon('export') + '导出全部数据 (JSON)</button>';
     h += '<button class="btn btn-outline btn-block" onclick="window._importData()">' + icon('import') + '从 JSON 文件导入</button>';
+    h += '<div class="backup-method-title">兼容方式</div>';
+    h += '<button class="btn btn-outline btn-block" onclick="window._copyBackupText()">' + icon('export') + '复制备份文本</button>';
+    h += '<button class="btn btn-outline btn-block" onclick="window._showPasteImport()">' + icon('import') + '粘贴备份恢复</button>';
     h += '</div>';
     h += '<input type="file" id="import-file-input" accept=".json,application/json,text/json,text/plain,*/*" style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;opacity:0" onchange="window._handleImport(event)">';
     h += '</div>';
@@ -1123,6 +1127,48 @@
   function getBackupText() {
     return dataService.createExportText ? dataService.createExportText() : JSON.stringify(dataService.createExportData(), null, 2);
   }
+
+  function getBackupFilename() {
+    return 'vehicle-energy-backup-' + today() + '.json';
+  }
+
+  window._shareBackup = function () {
+    var jsonText = getBackupText();
+    var filename = getBackupFilename();
+    var blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
+    var file = null;
+    try {
+      file = new File([blob], filename, { type: 'application/json' });
+    } catch (e) {
+      file = null;
+    }
+
+    if (navigator.share) {
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+          files: [file],
+          title: '车辆能耗备份',
+          text: '车辆能耗记录备份'
+        }).catch(function () {
+          alert('系统分享不可用，已切换到复制备份文本。');
+          window._copyBackupText();
+        });
+        return;
+      }
+
+      navigator.share({
+        title: '车辆能耗备份',
+        text: jsonText
+      }).catch(function () {
+        alert('系统分享不可用，已切换到复制备份文本。');
+        window._copyBackupText();
+      });
+      return;
+    }
+
+    alert('系统分享不可用，已切换到复制备份文本。');
+    window._copyBackupText();
+  };
 
   window._copyBackupText = function () {
     var text = getBackupText();

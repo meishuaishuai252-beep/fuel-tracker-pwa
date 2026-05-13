@@ -869,6 +869,17 @@ html[data-theme="dark"] .theme-seg-btn.active {
   margin-top: 4px;
 }
 
+.backup-method-title {
+  margin: 8px 2px 2px;
+  color: var(--text-tertiary);
+  font-size: 0.74rem;
+  font-weight: 720;
+}
+
+.backup-method-title:first-child {
+  margin-top: 0;
+}
+
 .settings-about {
   text-align: center;
   color: var(--text-tertiary);
