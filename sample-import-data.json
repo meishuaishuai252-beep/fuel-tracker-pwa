@@ -1,0 +1,117 @@
+{
+  "version": 2,
+  "exportedAt": "2026-05-13T14:45:00.000Z",
+  "energyMode": "hybrid",
+  "vehicleProfile": {
+    "mode": "hybrid",
+    "currentOdometer": 23680,
+    "initializedAt": "2026-05-01T08:00:00.000Z",
+    "updatedAt": "2026-05-13T14:45:00.000Z",
+    "skippedOdometerInit": false
+  },
+  "fuelRecords": [
+    {
+      "id": "fuel-sample-001",
+      "date": "2026-04-20",
+      "odometer": 22840,
+      "amount": 302.4,
+      "liters": 42,
+      "pricePerLiter": 7.2,
+      "fullTank": true,
+      "note": "中石化 92号"
+    },
+    {
+      "id": "fuel-sample-002",
+      "date": "2026-05-03",
+      "odometer": 23260,
+      "amount": 238.15,
+      "liters": 31.75,
+      "pricePerLiter": 7.5,
+      "fullTank": true,
+      "note": "市区通勤后加油"
+    },
+    {
+      "id": "fuel-sample-003",
+      "date": "2026-05-11",
+      "odometer": 23620,
+      "amount": 186,
+      "liters": 24.8,
+      "pricePerLiter": 7.5,
+      "fullTank": false,
+      "note": "周末补油"
+    }
+  ],
+  "tripRecords": [
+    {
+      "id": "trip-sample-001",
+      "date": "2026-05-02",
+      "name": "上班通勤",
+      "startOdometer": 23120,
+      "endOdometer": 23146,
+      "distance": 26,
+      "purpose": "上班",
+      "estimatedCost": 15.6,
+      "note": "早高峰略堵"
+    },
+    {
+      "id": "trip-sample-002",
+      "date": "2026-05-05",
+      "name": "超市采购",
+      "startOdometer": 23288,
+      "endOdometer": 23316,
+      "distance": 28,
+      "purpose": "购物",
+      "estimatedCost": 16.8,
+      "note": "城市道路"
+    },
+    {
+      "id": "trip-sample-003",
+      "date": "2026-05-10",
+      "name": "周末出游",
+      "startOdometer": 23420,
+      "endOdometer": 23536,
+      "distance": 116,
+      "purpose": "出游",
+      "estimatedCost": 69.6,
+      "note": "高速和郊区道路"
+    }
+  ],
+  "chargeRecords": [
+    {
+      "id": "charge-sample-001",
+      "date": "2026-04-28",
+      "odometer": 23020,
+      "amount": 42.12,
+      "kwh": 31.2,
+      "pricePerKwh": 1.35,
+      "chargeType": "慢充",
+      "socStart": 28,
+      "socEnd": 86,
+      "note": "商场停车场慢充"
+    },
+    {
+      "id": "charge-sample-002",
+      "date": "2026-05-06",
+      "odometer": 23380,
+      "amount": 58.8,
+      "kwh": 42,
+      "pricePerKwh": 1.4,
+      "chargeType": "快充",
+      "socStart": 18,
+      "socEnd": 90,
+      "note": "高速服务区快充"
+    },
+    {
+      "id": "charge-sample-003",
+      "date": "2026-05-13",
+      "odometer": 23680,
+      "amount": 36.3,
+      "kwh": 33,
+      "pricePerKwh": 1.1,
+      "chargeType": "家充",
+      "socStart": 35,
+      "socEnd": 92,
+      "note": "夜间谷电"
+    }
+  ]
+}

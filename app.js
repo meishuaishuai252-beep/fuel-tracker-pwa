@@ -1080,8 +1080,9 @@
     h += '<div class="settings-btn-row">';
     h += '<button class="btn btn-outline btn-block" onclick="window._exportData()">' + icon('export') + '导出全部数据 (JSON)</button>';
     h += '<button class="btn btn-outline btn-block" onclick="window._importData()">' + icon('import') + '从 JSON 文件导入</button>';
+    h += '<button class="btn btn-outline btn-block" onclick="window._showPasteImport()">' + icon('import') + '粘贴 JSON 导入</button>';
     h += '</div>';
-    h += '<input type="file" id="import-file-input" accept=".json" style="display:none" onchange="window._handleImport(event)">';
+    h += '<input type="file" id="import-file-input" accept=".json,application/json,text/json,text/plain,*/*" style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;opacity:0" onchange="window._handleImport(event)">';
     h += '</div>';
 
     // Danger
@@ -1101,23 +1102,49 @@
 
   window._importData = function () { var inp = $('#import-file-input'); if (inp) inp.click(); };
 
+  function applyImportedDataWithConfirm(data) {
+    showConfirm('即将导入 ' + data.fuelRecords.length + ' 条加油记录、' + data.chargeRecords.length + ' 条充电记录和 ' + data.tripRecords.length + ' 条行程记录。\n\n⚠ 当前数据将被覆盖，是否继续？', function () {
+      applyData(dataService.importData(data));
+      energyMode = dataService.getEnergyMode ? dataService.getEnergyMode() : 'fuel';
+      vehicleProfile = dataService.getVehicleProfile ? dataService.getVehicleProfile() : vehicleProfile;
+      activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
+      updateEnergyNav();
+      closeModal();
+      alert('导入成功！');
+      refreshCurrentPage();
+    });
+  }
+
   window._handleImport = function (event) {
     var file = event.target.files[0];
     if (!file) return;
     dataService.readImportFile(file)
       .then(function (data) {
-        showConfirm('即将导入 ' + data.fuelRecords.length + ' 条加油记录、' + data.chargeRecords.length + ' 条充电记录和 ' + data.tripRecords.length + ' 条行程记录。\n\n⚠ 当前数据将被覆盖，是否继续？', function () {
-          applyData(dataService.importData(data));
-          energyMode = dataService.getEnergyMode ? dataService.getEnergyMode() : 'fuel';
-          vehicleProfile = dataService.getVehicleProfile ? dataService.getVehicleProfile() : vehicleProfile;
-          activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
-          updateEnergyNav();
-          alert('导入成功！');
-          refreshCurrentPage();
-        });
+        applyImportedDataWithConfirm(data);
       })
       .catch(function () { alert('文件解析失败，请检查文件格式'); });
     event.target.value = '';
+  };
+
+  window._showPasteImport = function () {
+    var h = '<div class="modal-header"><h2>' + icon('import') + '粘贴 JSON 导入</h2><button class="modal-close" onclick="window._closeModal()" aria-label="关闭">×</button></div>';
+    h += '<div class="modal-body">';
+    h += '<div class="form-hint">安卓手机如果无法选择 .json 文件，可以先打开备份文件，复制全部内容，再粘贴到这里导入。</div>';
+    h += '<div class="form-group"><label class="form-label">JSON 内容</label><textarea class="form-input import-json-textarea" id="import-json-text" placeholder="{ ... }" spellcheck="false"></textarea></div>';
+    h += '<div class="modal-footer"><button class="btn btn-outline" onclick="window._closeModal()">取消</button><button class="btn btn-primary btn-block" onclick="window._importFromText()">解析并导入</button></div>';
+    openModal(h);
+  };
+
+  window._importFromText = function () {
+    var textEl = $('#import-json-text');
+    var text = textEl ? textEl.value.trim() : '';
+    if (!text) { alert('请先粘贴 JSON 内容'); return; }
+    try {
+      var data = dataService.validateImportData ? dataService.validateImportData(JSON.parse(text)) : JSON.parse(text);
+      applyImportedDataWithConfirm(data);
+    } catch (e) {
+      alert('JSON 解析失败，请检查是否复制完整');
+    }
   };
 
   window._clearAllData = function () {

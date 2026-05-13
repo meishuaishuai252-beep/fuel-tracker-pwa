@@ -819,6 +819,16 @@ html[data-theme="dark"] .theme-seg-btn.active {
   font-weight: 650;
 }
 
+.import-json-textarea {
+  min-height: 220px;
+  padding: 14px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+
 /* ---- Settings Buttons ---- */
 .settings-btn-row {
   display: flex;

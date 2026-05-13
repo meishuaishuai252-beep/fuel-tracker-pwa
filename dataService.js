@@ -170,15 +170,16 @@
       throw new Error('Invalid backup data format');
     }
     data.chargeRecords = Array.isArray(data.chargeRecords) ? data.chargeRecords : [];
-    data.energyMode = normalizeEnergyMode(data.energyMode || 'fuel');
-    data.vehicleProfile = normalizeVehicleProfile(data.vehicleProfile || { mode: data.energyMode });
-    return normalizeData(data);
+    var normalized = normalizeData(data);
+    normalized.energyMode = normalizeEnergyMode(data.energyMode || 'fuel');
+    normalized.vehicleProfile = normalizeVehicleProfile(data.vehicleProfile || { mode: normalized.energyMode });
+    return normalized;
   }
 
   function importData(data) {
     var normalized = validateImportData(data);
-    setEnergyMode(data.energyMode);
-    saveVehicleProfile(data.vehicleProfile);
+    setEnergyMode(normalized.energyMode);
+    saveVehicleProfile(normalized.vehicleProfile);
     return saveData(normalized);
   }
 
@@ -242,6 +243,7 @@
     updateChargeRecord: updateChargeRecord,
     deleteChargeRecord: deleteChargeRecord,
     clearAllData: clearAllData,
+    validateImportData: validateImportData,
     importData: importData,
     createExportData: createExportData,
     downloadExport: downloadExport,
