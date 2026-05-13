@@ -4,21 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f5f5f7">
-  <title>油耗记录助手 - 官网视觉第一版</title>
-  <meta name="description" content="油耗记录助手是一款车辆能耗记录 PWA，帮助你记录加油、行程、油耗趋势和用车成本。">
+  <title>油耗记录助手 - 车辆能耗记录 PWA</title>
+  <meta name="description" content="油耗记录助手是一款车辆能耗记录 PWA，支持燃油、纯电、混动、行程、趋势统计和本地备份。">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="official.css">
 </head>
 <body>
   <header class="site-nav" aria-label="官网导航">
-    <a class="brand" href="#top" aria-label="油耗记录助手首页">
+    <a class="brand" href="#top" aria-label="油耗记录助手官网首页">
       <img src="icons/icon-192.png" alt="" width="28" height="28">
       <span>油耗记录助手</span>
     </a>
     <nav class="nav-links" aria-label="页面章节">
-      <a href="#experience">体验</a>
-      <a href="#insight">洞察</a>
-      <a href="#privacy">隐私</a>
+      <a href="#platforms">三端体验</a>
+      <a href="#energy">能耗模式</a>
+      <a href="#features">功能</a>
+      <a href="#backup">备份</a>
       <a href="index.html" class="nav-cta">打开应用</a>
     </nav>
   </header>
@@ -26,177 +27,187 @@
   <main id="top">
     <section class="hero-section" aria-labelledby="hero-title">
       <div class="hero-copy reveal">
-        <p class="eyebrow">Fuel intelligence, made calm.</p>
-        <h1 id="hero-title">油耗记录助手</h1>
-        <p class="hero-subtitle">把每一次加油、每一段行程和每一笔用车成本，整理成清晰、安静、可信赖的车辆能耗视图。</p>
+        <p class="eyebrow">Vehicle energy dashboard</p>
+        <h1 id="hero-title"><span>车辆能耗，</span><span>变得清楚。</span></h1>
+        <p class="hero-subtitle"><span>记录加油、充电和行程，</span><span>自动整理油耗、电耗、每公里成本。</span><span>手机随手记，电脑清楚看。</span></p>
         <div class="hero-actions">
-          <a class="primary-action" href="index.html">立即体验</a>
-          <a class="secondary-action" href="#experience">查看设计</a>
+          <a class="primary-action" href="index.html">立即打开</a>
+          <a class="secondary-action" href="#platforms">查看新版体验</a>
         </div>
       </div>
 
-      <div class="product-stage reveal" aria-label="产品界面预览">
-        <div class="desktop-frame">
-          <div class="frame-bar">
-            <span></span><span></span><span></span>
-          </div>
-          <div class="desktop-ui">
-            <div class="ui-rail">
-              <img src="icons/icon-192.png" alt="" width="42" height="42">
-              <span class="rail-active"></span>
+      <div class="hero-product reveal" aria-label="车辆能耗中控台预览">
+        <div class="desktop-shell">
+          <div class="window-bar"><span></span><span></span><span></span></div>
+          <div class="dashboard-preview">
+            <aside class="dashboard-rail">
+              <img src="icons/icon-192.png" alt="" width="44" height="44">
+              <span class="active"></span>
               <span></span>
               <span></span>
               <span></span>
-            </div>
-            <div class="ui-main">
-              <div class="ui-topline">
+            </aside>
+            <section class="dashboard-main">
+              <div class="preview-topline">
                 <span>2026 年 5 月</span>
-                <strong>车辆能耗中控台</strong>
+                <strong>Energy Overview</strong>
               </div>
-              <div class="ui-hero-card">
-                <span>本月用车成本</span>
-                <strong>¥ 842.60</strong>
-                <small>平均 0.62 元 / 公里</small>
-                <div class="soft-chart" aria-hidden="true">
-                  <i style="height:38%"></i>
-                  <i style="height:54%"></i>
-                  <i style="height:45%"></i>
-                  <i style="height:72%"></i>
-                  <i style="height:58%"></i>
-                  <i style="height:84%"></i>
-                  <i style="height:66%"></i>
+              <div class="preview-hero-card">
+                <div>
+                  <span>当前总里程</span>
+                  <strong>23,680 km</strong>
+                  <small>混动模式 · 来自最新记录</small>
+                </div>
+                <div class="vehicle-art" aria-hidden="true">
+                  <span class="car-body"></span>
+                  <span class="car-window"></span>
+                  <i></i><i></i>
                 </div>
               </div>
-              <div class="metric-strip">
-                <div><span>平均油耗</span><strong>7.4 L</strong></div>
-                <div><span>本月里程</span><strong>1,358 km</strong></div>
-                <div><span>加油次数</span><strong>4</strong></div>
+              <div class="preview-metrics">
+                <article><span>本月行驶</span><strong>1,358</strong><small>km</small></article>
+                <article><span>综合成本</span><strong>¥0.62</strong><small>/km</small></article>
+                <article><span>本月费用</span><strong>¥842.60</strong><small>油 + 电</small></article>
               </div>
-            </div>
-            <div class="ui-panel">
-              <div class="panel-chip">Full tank</div>
-              <div class="gauge-ring"><span>86%</span></div>
-              <div class="list-line strong"></div>
-              <div class="list-line"></div>
-              <div class="list-line short"></div>
-            </div>
+            </section>
+            <section class="dashboard-side">
+              <div class="mode-chip">Fuel + EV</div>
+              <div class="ring-meter"><span>86%</span></div>
+              <div class="mini-trend" aria-hidden="true">
+                <i style="height:42%"></i><i style="height:68%"></i><i style="height:54%"></i><i style="height:82%"></i><i style="height:63%"></i>
+              </div>
+            </section>
           </div>
         </div>
       </div>
     </section>
 
     <section class="statement-section">
-      <p class="reveal">不只是一张表格。它更像一个为车主准备的安静仪表盘：少一点打扰，多一点确定。</p>
+      <p class="reveal">不是单纯记账，而是把车的能耗、里程和费用变成可以长期复盘的个人仪表盘。</p>
     </section>
 
-    <section id="experience" class="showcase-section light-band" aria-labelledby="experience-title">
+    <section id="platforms" class="platform-section" aria-labelledby="platform-title">
       <div class="section-copy reveal">
-        <p class="eyebrow">Experience</p>
-        <h2 id="experience-title">记录动作足够快，界面才会被长期使用。</h2>
-        <p>加油、行程、统计和设置被放进同一套轻量 PWA 体验里。手机端继续保持工具效率，官网第一版则先建立“产品值得信赖”的视觉印象。</p>
+        <p class="eyebrow">PC · iPhone · Android</p>
+        <h2 id="platform-title">同一套数据，三种打开方式。</h2>
+        <p>PC 端更适合看趋势和整体账本，iPhone 端适合添加到主屏幕后随手记录，Android 端重点优化了分享备份、复制备份和粘贴恢复。</p>
       </div>
-      <div class="phone-lineup reveal" aria-label="移动端界面展示">
-        <article class="phone-device">
-          <div class="phone-screen home-preview">
-            <span class="phone-kicker">概览</span>
-            <strong>¥ 842.60</strong>
-            <small>本月油费</small>
-            <div class="phone-wave"></div>
-            <div class="phone-grid">
-              <i></i><i></i><i></i><i></i>
+      <div class="platform-grid">
+        <article class="platform-card pc-card reveal">
+          <span class="platform-label">PC 网页</span>
+          <h3>大屏看总览。</h3>
+          <p>宽屏布局突出总里程、费用结构、油电趋势和最近记录，适合月末复盘。</p>
+          <div class="pc-mini">
+            <div class="pc-sidebar"></div>
+            <div class="pc-content">
+              <i></i><i></i><i></i>
+              <span></span>
             </div>
           </div>
         </article>
-        <article class="phone-device offset">
-          <div class="phone-screen stats-preview">
-            <span class="phone-kicker">统计</span>
-            <div class="mini-bars"><i></i><i></i><i></i><i></i><i></i></div>
-            <strong>7.4 L/100km</strong>
-            <small>近 30 天平均</small>
+        <article class="platform-card iphone-card reveal">
+          <span class="platform-label">iPhone PWA</span>
+          <h3>像 App 一样打开。</h3>
+          <p>支持添加到主屏幕，保留 iOS 风格导航、磨砂界面、系统深浅色和离线访问。</p>
+          <div class="phone-mini ios-phone">
+            <b></b>
+            <span>概览</span>
+            <strong>23,680</strong>
+            <small>Current Odometer</small>
+            <i></i>
+          </div>
+        </article>
+        <article class="platform-card android-card reveal">
+          <span class="platform-label">Android PWA</span>
+          <h3>备份更稳。</h3>
+          <p>针对安卓文件能力不一致的问题，增加分享备份、复制文本和粘贴恢复三条路径。</p>
+          <div class="phone-mini android-phone">
+            <b></b>
+            <span>数据备份</span>
+            <em>分享备份</em>
+            <em>复制备份文本</em>
+            <em>粘贴备份恢复</em>
           </div>
         </article>
       </div>
     </section>
 
-    <section id="insight" class="feature-band dark-band" aria-labelledby="insight-title">
-      <div class="feature-copy reveal">
-        <p class="eyebrow">Insight</p>
-        <h2 id="insight-title">让数字自己变得有解释力。</h2>
+    <section id="energy" class="energy-section dark-band" aria-labelledby="energy-title">
+      <div class="center-copy reveal">
+        <p class="eyebrow">Energy modes</p>
+        <h2 id="energy-title">燃油、纯电、混动，都能放进同一个账本。</h2>
       </div>
-      <div class="feature-grid">
-        <article class="feature-card reveal">
-          <span class="feature-dot blue"></span>
-          <h3>油耗趋势</h3>
-          <p>从满箱记录中推算百公里油耗，把异常波动从“感觉”变成可追踪的曲线。</p>
+      <div class="energy-grid">
+        <article class="energy-card reveal">
+          <span class="energy-icon fuel-icon"></span>
+          <h3>燃油模式</h3>
+          <p>记录金额、升数、油价、总里程、油品、油站和满箱标记，计算真实油耗趋势。</p>
         </article>
-        <article class="feature-card reveal">
-          <span class="feature-dot green"></span>
-          <h3>行程成本</h3>
-          <p>把里程、金额、升数和油价放在一起，适合通勤、旅行和多场景用车复盘。</p>
+        <article class="energy-card reveal">
+          <span class="energy-icon ev-icon"></span>
+          <h3>纯电模式</h3>
+          <p>记录充电金额、电量、电价和里程，计算 kWh/100km 与每公里电费。</p>
         </article>
-        <article class="feature-card reveal">
-          <span class="feature-dot amber"></span>
-          <h3>离线可用</h3>
-          <p>PWA 架构让应用可以添加到桌面，核心数据保存在本地，弱网场景也能继续记录。</p>
-        </article>
-        <article class="feature-card reveal">
-          <span class="feature-dot rose"></span>
-          <h3>自动计算</h3>
-          <p>金额、升数和油价填写任意两项即可推算第三项，减少加油站现场记录的输入负担。</p>
-        </article>
-        <article class="feature-card reveal">
-          <span class="feature-dot violet"></span>
-          <h3>JSON 备份</h3>
-          <p>支持导出和导入完整数据，换设备、重装浏览器或长期留档时都能自己掌控记录。</p>
-        </article>
-        <article class="feature-card reveal">
-          <span class="feature-dot cyan"></span>
-          <h3>月度概览</h3>
-          <p>把本月油费、里程、平均油耗和每公里成本收拢到首页，打开就能判断用车状态。</p>
+        <article class="energy-card reveal">
+          <span class="energy-icon hybrid-icon"></span>
+          <h3>油电混合</h3>
+          <p>油费和电费同时保留，按本月行驶里程估算综合每公里成本。</p>
         </article>
       </div>
     </section>
 
-    <section class="workflow-section" aria-labelledby="workflow-title">
-      <div class="workflow-copy reveal">
-        <p class="eyebrow">Workflow</p>
-        <h2 id="workflow-title">从一条记录，到一套用车账本。</h2>
-        <p>官网第一版把核心路径讲清楚：快速记录、自动整理、趋势分析、本地备份。后续可以继续加入多车辆、云同步和更完整的桌面端数据大屏。</p>
+    <section id="features" class="feature-section" aria-labelledby="feature-title">
+      <div class="section-copy reveal">
+        <p class="eyebrow">What is new</p>
+        <h2 id="feature-title">今天的新版本，功能更完整。</h2>
+        <p>官网内容已跟进应用本体的新能力：车辆信息初始化、能耗模式切换、充电记录、综合统计、安卓备份兼容和导入预检查。</p>
       </div>
-      <div class="workflow-board" aria-label="功能流程">
-        <article class="reveal">
+      <div class="feature-list">
+        <article class="feature-row reveal">
           <span>01</span>
-          <h3>加油记录</h3>
-          <p>日期、里程、金额、升数、油价、满箱标记和备注。</p>
+          <div><h3>车辆信息初始化</h3><p>首次使用可以填写车辆模式和当前总里程，首页会把“总里程”作为核心指标显示。</p></div>
         </article>
-        <article class="reveal">
+        <article class="feature-row reveal">
           <span>02</span>
-          <h3>行程记录</h3>
-          <p>起止里程自动计算距离，并结合平均油耗估算成本。</p>
+          <div><h3>自动计算输入项</h3><p>加油和充电记录都减少重复输入，金额、数量、单价之间可以自动推算。</p></div>
         </article>
-        <article class="reveal">
+        <article class="feature-row reveal">
           <span>03</span>
-          <h3>统计分析</h3>
-          <p>汇总百公里油耗、每公里油费和近期消耗趋势。</p>
+          <div><h3>趋势统计</h3><p>满箱加油或连续充电记录会生成油耗、电耗曲线，并显示数据可信状态。</p></div>
         </article>
-        <article class="reveal">
+        <article class="feature-row reveal">
           <span>04</span>
-          <h3>设置备份</h3>
-          <p>主题切换、数据导入导出和清空数据二次确认。</p>
+          <div><h3>行程成本</h3><p>起止里程自动得出距离，并结合平均能耗估算每次出行的费用。</p></div>
+        </article>
+        <article class="feature-row reveal">
+          <span>05</span>
+          <div><h3>深浅色主题</h3><p>支持跟随系统、浅色、深色三种外观，适配白天记录和夜间查看。</p></div>
         </article>
       </div>
     </section>
 
-    <section id="privacy" class="privacy-section" aria-labelledby="privacy-title">
+    <section id="backup" class="backup-section" aria-labelledby="backup-title">
+      <div class="backup-copy reveal">
+        <p class="eyebrow">Backup</p>
+        <h2 id="backup-title">本地优先，也要方便迁移。</h2>
+        <p>数据默认保存在浏览器本地，不上传服务器。你可以导出 JSON，也可以在移动端通过系统分享、复制文本、粘贴恢复来完成备份。</p>
+      </div>
+      <div class="backup-board reveal" aria-label="备份能力">
+        <article><span>推荐</span><strong>分享备份</strong><p>适合 Android 和 iPhone，把备份发送到微信、文件或备忘录。</p></article>
+        <article><span>文件</span><strong>JSON 导入导出</strong><p>适合 PC 或支持文件选择器的浏览器，方便长期归档。</p></article>
+        <article><span>兼容</span><strong>复制与粘贴恢复</strong><p>当移动浏览器限制文件上传下载时，用纯文本也能恢复数据。</p></article>
+      </div>
+    </section>
+
+    <section class="privacy-section" aria-labelledby="privacy-title">
       <div class="privacy-visual reveal" aria-hidden="true">
-        <img src="icons/icon-512.png" alt="" width="156" height="156">
-        <div class="orbit one"></div>
-        <div class="orbit two"></div>
+        <img src="icons/icon-512.png" alt="" width="152" height="152">
+        <div class="privacy-lines"><span></span><span></span><span></span></div>
       </div>
       <div class="privacy-copy reveal">
         <p class="eyebrow">Privacy</p>
-        <h2 id="privacy-title">数据留在你的浏览器里。</h2>
-        <p>当前版本不依赖后端服务，记录存储在本地 localStorage。导出 JSON 后，可以自己备份、迁移或长期保存。</p>
+        <h2 id="privacy-title">记录留在你的设备里。</h2>
+        <p>当前版本不依赖后端服务，燃油、充电、行程、车辆信息和偏好设置都保存在本地。清除浏览器数据前，记得先备份。</p>
         <a class="text-link" href="index.html">进入应用</a>
       </div>
     </section>
