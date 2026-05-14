@@ -25,9 +25,18 @@
   var confirmMessage = $('#confirm-message');
   var confirmOk = $('#confirm-ok');
   var confirmCancel = $('#confirm-cancel');
+  var saveSummaryOverlay = $('#saveSummaryOverlay');
+  var summaryTitle = $('#summaryTitle');
+  var summaryVisual = $('#summaryVisual');
+  var summaryRows = $('#summaryRows');
+  var summaryHint = $('#summaryHint');
+  var summaryDoneBtn = $('#summaryDoneBtn');
+  var toastEl = $('#toast');
 
   var confirmCallback = null;
   var pendingPasteImportData = null;
+  var toastTimer = null;
+  var summaryTimer = null;
 
   // ==================== Theme ====================
   function getThemeMode() {
@@ -58,6 +67,84 @@
     applyTheme(mode);
     refreshCurrentPage();
   };
+
+  window._setShowSaveSummary = function (enabled) {
+    setShowSaveSummary(enabled);
+    showToast('设置已更新');
+  };
+
+  // ==================== Feedback ====================
+  function getShowSaveSummary() {
+    return dataService && dataService.getShowSaveSummary ? dataService.getShowSaveSummary() : (localStorage.getItem('showSaveSummary') === null ? true : localStorage.getItem('showSaveSummary') === 'true');
+  }
+
+  function setShowSaveSummary(enabled) {
+    if (dataService && dataService.setShowSaveSummary) dataService.setShowSaveSummary(enabled);
+    else localStorage.setItem('showSaveSummary', String(Boolean(enabled)));
+  }
+
+  function showToast(message, duration) {
+    if (!toastEl) return;
+    toastEl.textContent = message || '';
+    toastEl.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.add('hidden');
+    }, duration || 1800);
+  }
+
+  function closeSaveSummary() {
+    if (saveSummaryOverlay) saveSummaryOverlay.classList.add('hidden');
+    clearTimeout(summaryTimer);
+  }
+
+  function openSaveSummary(options) {
+    options = options || {};
+    if (!getShowSaveSummary()) {
+      showToast('记录已保存');
+      return;
+    }
+    if (!saveSummaryOverlay || !summaryTitle || !summaryRows || !summaryHint) {
+      showToast('记录已保存');
+      return;
+    }
+    summaryTitle.textContent = options.title || '记录已保存';
+    summaryRows.innerHTML = (options.rows || []).map(function (row) {
+      return '<div class="summary-row"><span>' + escHtml(row.label) + '</span><span>' + escHtml(row.value) + '</span></div>';
+    }).join('');
+    summaryHint.textContent = options.hint || '';
+    if (summaryVisual) {
+      summaryVisual.innerHTML = options.visual || '';
+      summaryVisual.classList.toggle('hidden', !options.visual);
+    }
+    saveSummaryOverlay.classList.remove('hidden');
+    clearTimeout(summaryTimer);
+    summaryTimer = setTimeout(closeSaveSummary, 5000);
+  }
+
+  async function withSavingState(button, task) {
+    if (button && button.disabled) return null;
+    var oldText = button ? button.textContent : '';
+    if (button) {
+      button.disabled = true;
+      button.classList.add('is-saving');
+      button.innerHTML = '<span class="btn-spinner"></span>保存中...';
+    }
+    try {
+      await new Promise(function (resolve) { setTimeout(resolve, 160); });
+      return task();
+    } catch (error) {
+      console.error(error);
+      showToast(error && error.message ? error.message : '保存失败，请检查输入');
+      return null;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.classList.remove('is-saving');
+        button.textContent = oldText;
+      }
+    }
+  }
 
   // ==================== Nav Pill ====================
   function updateNavPill() {
@@ -525,6 +612,139 @@
     return max;
   }
 
+  function getPreviousFuelPrice(excludeId) {
+    var records = sortByDateDesc(fuelRecords).filter(function (r) { return r.id !== excludeId && Number(r.pricePerLiter) > 0; });
+    return records.length ? Number(records[0].pricePerLiter) : null;
+  }
+
+  function getPreviousChargePrice(excludeId) {
+    var records = sortByDateDesc(chargeRecords).filter(function (r) { return r.id !== excludeId && Number(r.pricePerKwh) >= 0; });
+    return records.length ? Number(records[0].pricePerKwh) : null;
+  }
+
+  function getFuelRangeEstimate(liters) {
+    var avg = getAverageConsumption();
+    if (avg == null || avg <= 0 || !(Number(liters) > 0)) return null;
+    return Math.round((Number(liters) / avg) * 100);
+  }
+
+  function getChargeRangeEstimate(kwh) {
+    var avg = getAverageElectricConsumption();
+    if (avg == null || avg <= 0 || !(Number(kwh) > 0)) return null;
+    return Math.round((Number(kwh) / avg) * 100);
+  }
+
+  function getFuelSaveHint(record, previousPrice) {
+    if (previousPrice != null && Number(record.pricePerLiter) > 0) {
+      var diff = Number(record.pricePerLiter) - previousPrice;
+      if (Math.abs(diff) >= 0.01) return diff < 0 ? '本次油价比上次低 ¥' + fmtMoney(Math.abs(diff)) + '/L，记录得很及时。' : '本次油价比上次高 ¥' + fmtMoney(diff) + '/L，后续可以继续观察。';
+    }
+    return '继续记录几次后，可以计算更准确的油耗。';
+  }
+
+  function getChargeSaveHint(record) {
+    if (record.chargeType === '快充') return '快充适合临时补能，费用可能高于家充。';
+    if (record.chargeType === '家充') return '家充通常更适合日常低成本补能。';
+    return '继续记录几次后，可以计算更准确的电耗。';
+  }
+
+  function getTripSaveHint(record) {
+    var extra = (Number(record.parkingFee) || 0) + (Number(record.tollFee) || 0);
+    var total = Number(record.totalCost) || 0;
+    if (total > 0 && extra / total >= 0.35) return '本趟附加费用占比较高。';
+    if (Number(record.distance) < 5) return '短途行驶成本可能受拥堵和冷车影响。';
+    var kmCost = record.distance > 0 ? total / record.distance : null;
+    if (kmCost != null && kmCost > 0 && kmCost < 0.6) return '这趟成本较低，可作为日常通勤参考。';
+    return '继续记录后可以获得更准确的成本估算。';
+  }
+
+  function buildFuelSummary(record, previousPrice) {
+    var range = getFuelRangeEstimate(record.liters);
+    return {
+      title: '补能完成',
+      visual: '<div class="summary-meter fuel"><span style="width:' + Math.min(100, Math.round((Number(record.liters) || 0) / 60 * 100)) + '%"></span></div>',
+      rows: [
+        { label: '本次加油', value: fmtFuel(record.liters) + ' L' },
+        { label: '花费', value: '¥' + fmtMoney(record.amount) },
+        { label: '油价', value: '¥' + fmtMoney(record.pricePerLiter) + '/L' },
+        { label: '当前总里程', value: fmtDist(record.odometer) + ' km' },
+        { label: '预计可支持约', value: range != null ? range + ' km' : '-- km' }
+      ],
+      hint: getFuelSaveHint(record, previousPrice)
+    };
+  }
+
+  function buildChargeSummary(record) {
+    var range = getChargeRangeEstimate(record.kwh);
+    var soc = record.socStart != null && record.socEnd != null ? record.socStart + '% → ' + record.socEnd + '%' : '--';
+    var socWidth = record.socEnd != null ? Math.max(0, Math.min(100, Number(record.socEnd))) : 0;
+    return {
+      title: '充电完成',
+      visual: record.socStart != null && record.socEnd != null ? '<div class="summary-meter charge"><span style="width:' + socWidth + '%"></span></div>' : '<div class="summary-meter charge"><span style="width:' + Math.min(100, Math.round((Number(record.kwh) || 0) / 80 * 100)) + '%"></span></div>',
+      rows: [
+        { label: '本次充电', value: fmtFuel(record.kwh) + ' kWh' },
+        { label: '花费', value: '¥' + fmtMoney(record.amount) },
+        { label: '电价', value: '¥' + fmtMoney(record.pricePerKwh) + '/kWh' },
+        { label: '当前总里程', value: fmtDist(record.odometer) + ' km' },
+        { label: 'SOC', value: soc },
+        { label: '预计可支持约', value: range != null ? range + ' km' : '-- km' }
+      ],
+      hint: getChargeSaveHint(record)
+    };
+  }
+
+  function buildTripSummary(record) {
+    var total = Number(record.totalCost) || 0;
+    var perKm = Number(record.distance) > 0 ? total / Number(record.distance) : 0;
+    return {
+      title: '行程已记录',
+      rows: [
+        { label: '本次行驶', value: fmtDist(record.distance) + ' km' },
+        { label: '预计能源费用', value: '¥' + fmtMoney(record.estimatedCost || 0) },
+        { label: '停车费', value: '¥' + fmtMoney(record.parkingFee || 0) },
+        { label: '过路费', value: '¥' + fmtMoney(record.tollFee || 0) },
+        { label: '本趟总成本', value: '¥' + fmtMoney(total) },
+        { label: '每公里成本', value: '¥' + fmtMoney(perKm) + '/km' },
+        { label: '用途 / 路况', value: (record.purpose || '--') + ' / ' + (record.roadType || '--') }
+      ],
+      hint: getTripSaveHint(record)
+    };
+  }
+
+  function getTodayTripSummary() {
+    var trips = tripRecords.filter(function (r) { return r.date === today(); });
+    return {
+      count: trips.length,
+      distance: trips.reduce(function (s, r) { return s + (Number(r.distance) || 0); }, 0),
+      estimatedCost: trips.reduce(function (s, r) { return s + (Number(r.estimatedCost) || 0); }, 0),
+      totalCost: trips.reduce(function (s, r) {
+        return s + (r.totalCost != null ? Number(r.totalCost) || 0 : (Number(r.estimatedCost) || 0) + (Number(r.parkingFee) || 0) + (Number(r.tollFee) || 0));
+      }, 0)
+    };
+  }
+
+  function renderTodayTripSummary() {
+    var summary = getTodayTripSummary();
+    if (!summary.count) return '<section class="log-summary-card"><div><strong>今日小结</strong><span>今天还没有行程记录</span></div></section>';
+    return '<section class="log-summary-card"><div><strong>今日小结</strong><span>已记录 ' + summary.count + ' 趟</span></div><div class="summary-chip-row"><span>' + fmtDist(summary.distance) + ' km</span><span>能源费 ¥' + fmtMoney(summary.estimatedCost) + '</span><span>总成本 ¥' + fmtMoney(summary.totalCost) + '</span></div></section>';
+  }
+
+  function renderEnergySummaryCard(showing) {
+    var monthlyFuel = getMonthlyFuelStats();
+    var monthlyCharge = getMonthlyChargeStats();
+    var fuelCount = fuelRecords.filter(function (r) { return isCurrentMonth(r.date); }).length;
+    var chargeCount = chargeRecords.filter(function (r) { return isCurrentMonth(r.date); }).length;
+    var h = '<section class="log-summary-card energy-log-summary"><div><strong>' + (showing === 'charge' ? '充电小结' : energyMode === 'hybrid' ? '补能小结' : '加油小结') + '</strong><span>本月记录概况</span></div><div class="summary-chip-row">';
+    if (energyMode === 'electric' || showing === 'charge') {
+      h += '<span>' + chargeCount + ' 次充电</span><span>电费 ¥' + fmtMoney(monthlyCharge.totalAmount) + '</span><span>最近 ¥' + (getLatestChargePrice() != null ? fmtMoney(getLatestChargePrice()) : '--') + '/kWh</span>';
+    } else if (energyMode === 'hybrid') {
+      h += '<span>' + (fuelCount + chargeCount) + ' 次补能</span><span>油费 ¥' + fmtMoney(monthlyFuel.totalAmount) + '</span><span>电费 ¥' + fmtMoney(monthlyCharge.totalAmount) + '</span><span>综合 ¥' + fmtMoney(monthlyFuel.totalAmount + monthlyCharge.totalAmount) + '</span>';
+    } else {
+      h += '<span>' + fuelCount + ' 次加油</span><span>油费 ¥' + fmtMoney(monthlyFuel.totalAmount) + '</span><span>最近 ¥' + (getLatestFuelPrice() != null ? fmtMoney(getLatestFuelPrice()) : '--') + '/L</span>';
+    }
+    return h + '</div></section>';
+  }
+
   function getFuelConfidence() {
     var fullCount = fuelRecords.filter(function (r) { return r.fullTank; }).length;
     if (fuelRecords.length >= 4 && fullCount >= 2) return { label: '数据可信', detail: fullCount + ' 次满箱校准', pct: 88 };
@@ -817,11 +1037,9 @@
     h += '</details>';
     h += '<div class="modal-footer">';
     if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
-    h += '<button class="btn btn-primary btn-block" onclick="window._saveFuel(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
+    h += '<button class="btn btn-primary btn-block" onclick="window._saveFuel(\'' + (r.id || '') + '\', this)">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
-    setTimeout(function () {
-      $$('.fuel-calc').forEach(function (inp) { inp.addEventListener('input', function () { autoCalcFuel(inp.id); }); });
-    }, 100);
+    $$('.fuel-calc').forEach(function (inp) { inp.addEventListener('input', function () { autoCalcFuel(inp.id); }); });
   }
 
   function autoCalcFuel(changedId) {
@@ -833,7 +1051,8 @@
     else if (changedId !== 'fuel-liters' && amtEl.value && prcEl.value && !isNaN(amt) && !isNaN(prc) && prc > 0) litEl.value = fmtFuel(amt / prc);
   }
 
-  window._saveFuel = function (editId) {
+  window._saveFuel = async function (editId, button) {
+    return withSavingState(button, function () {
     var date = $('#fuel-date').value;
     var odo = parseFloat($('#fuel-odo').value);
     var amt = parseFloat($('#fuel-amount').value) || 0;
@@ -844,14 +1063,15 @@
     var station = $('#fuel-station') ? $('#fuel-station').value : '';
     var paymentMethod = $('#fuel-payment') ? $('#fuel-payment').value : '';
     var note = $('#fuel-note').value.trim();
-    if (!date) { alert('请选择日期'); return; }
-    if (isNaN(odo) || odo < 0) { alert('请输入有效的里程数'); return; }
-    if (amt <= 0) { alert('加油金额必须大于 0'); return; }
-    if (lit <= 0) { alert('加油升数必须大于 0'); return; }
-    if (prc <= 0) { alert('油价必须大于 0'); return; }
+    if (!date) { showToast('请选择日期'); return null; }
+    if (isNaN(odo) || odo < 0) { showToast('请输入有效的里程数'); return null; }
+    if (amt <= 0) { showToast('加油金额必须大于 0'); return null; }
+    if (lit <= 0) { showToast('加油升数必须大于 0'); return null; }
+    if (prc <= 0) { showToast('油价必须大于 0'); return null; }
     if ((prc < 3 || prc > 15) && !confirm('油价看起来异常，是否继续保存？')) return;
     var maxOdo = maxHistoricalOdometer(editId);
     if (maxOdo != null && odo < maxOdo && !confirm('当前里程小于历史记录最大里程，是否继续保存？')) return;
+    var previousPrice = getPreviousFuelPrice(editId);
     var record = { id: editId || genId(), date: date, odometer: odo, amount: Number(fmtMoney(amt)), liters: Number(fmtFuel(lit)), pricePerLiter: Number(fmtMoney(prc)), fullTank: full, fuelType: fuelType, station: station, paymentMethod: paymentMethod, note: note };
     if (editId) {
       updateFuelRecord(editId, record);
@@ -861,6 +1081,9 @@
     savePrefs({ fuelType: fuelType, station: station, paymentMethod: paymentMethod });
     updateVehicleOdometerIfNeeded(odo);
     closeModal(); refreshCurrentPage();
+    openSaveSummary(buildFuelSummary(record, previousPrice));
+    return record;
+    });
   };
 
   function renderEnergyPage() {
@@ -874,6 +1097,7 @@
     if (mode === 'hybrid') {
       h += '<div class="energy-segmented"><button class="theme-seg-btn' + (showing === 'fuel' ? ' active' : '') + '" onclick="window._setEnergyTab(\'fuel\')">加油</button><button class="theme-seg-btn' + (showing === 'charge' ? ' active' : '') + '" onclick="window._setEnergyTab(\'charge\')">充电</button></div>';
     }
+    h += renderEnergySummaryCard(showing);
     if (records.length === 0) {
       h += '<div class="empty-state"><div class="empty-state-icon">' + (showing === 'charge' ? icon('charge') : icon('fuel')) + '</div><p>还没有' + (showing === 'charge' ? '充电' : '加油') + '记录</p><button class="btn btn-primary btn-sm" onclick="' + (showing === 'charge' ? 'window._showChargeForm()' : 'window._showFuelForm()') + '">新增' + (showing === 'charge' ? '充电' : '加油') + '记录</button></div>';
     } else {
@@ -932,13 +1156,11 @@
     h += '</details>';
     h += '<div class="modal-footer">';
     if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
-    h += '<button class="btn btn-primary btn-block" onclick="window._saveCharge(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
+    h += '<button class="btn btn-primary btn-block" onclick="window._saveCharge(\'' + (r.id || '') + '\', this)">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
-    setTimeout(function () {
-      $$('.charge-calc').forEach(function (inp) { inp.addEventListener('input', function () { autoCalcCharge(inp.id); }); });
-      $$('.charge-soc').forEach(function (inp) { inp.addEventListener('input', updateSocDelta); });
-      updateSocDelta();
-    }, 100);
+    $$('.charge-calc').forEach(function (inp) { inp.addEventListener('input', function () { autoCalcCharge(inp.id); }); });
+    $$('.charge-soc').forEach(function (inp) { inp.addEventListener('input', updateSocDelta); });
+    updateSocDelta();
   }
 
   function autoCalcCharge(changedId) {
@@ -956,7 +1178,8 @@
     if (el) el.textContent = s != null && e != null ? '补电百分比：' + (e - s) + '%' : '补电百分比：—';
   }
 
-  window._saveCharge = function (editId) {
+  window._saveCharge = async function (editId, button) {
+    return withSavingState(button, function () {
     var date = $('#charge-date').value;
     var odo = parseFloat($('#charge-odo').value);
     var amt = parseFloat($('#charge-amount').value) || 0;
@@ -968,14 +1191,14 @@
     var socEnd = optionalNumber('#charge-soc-end');
     var note = $('#charge-note').value.trim();
     var free = type === '免费充电';
-    if (!date) { alert('请选择日期'); return; }
-    if (isNaN(odo) || odo < 0) { alert('请输入有效的里程数'); return; }
-    if (!free && amt <= 0) { alert('充电金额必须大于 0'); return; }
-    if (kwh <= 0) { alert('充电度数必须大于 0'); return; }
-    if (prc < 0) { alert('电价必须大于等于 0'); return; }
-    if (socStart != null && (socStart < 0 || socStart > 100)) { alert('开始电量必须在 0-100 之间'); return; }
-    if (socEnd != null && (socEnd < 0 || socEnd > 100)) { alert('结束电量必须在 0-100 之间'); return; }
-    if (socStart != null && socEnd != null && socEnd < socStart) { alert('结束电量不能小于开始电量'); return; }
+    if (!date) { showToast('请选择日期'); return null; }
+    if (isNaN(odo) || odo < 0) { showToast('请输入有效的里程数'); return null; }
+    if (!free && amt <= 0) { showToast('充电金额必须大于 0'); return null; }
+    if (kwh <= 0) { showToast('充电度数必须大于 0'); return null; }
+    if (prc < 0) { showToast('电价必须大于等于 0'); return null; }
+    if (socStart != null && (socStart < 0 || socStart > 100)) { showToast('开始电量必须在 0-100 之间'); return null; }
+    if (socEnd != null && (socEnd < 0 || socEnd > 100)) { showToast('结束电量必须在 0-100 之间'); return null; }
+    if (socStart != null && socEnd != null && socEnd < socStart) { showToast('结束电量不能小于开始电量'); return null; }
     if (prc > 3 && !confirm('电价看起来偏高，是否继续保存？')) return;
     var maxOdo = maxHistoricalOdometer(editId);
     if (maxOdo != null && odo < maxOdo && !confirm('当前里程小于历史记录最大里程，是否继续保存？')) return;
@@ -985,6 +1208,9 @@
     savePrefs({ chargeType: type, chargeProvider: provider });
     updateVehicleOdometerIfNeeded(odo);
     closeModal(); refreshCurrentPage();
+    openSaveSummary(buildChargeSummary(record));
+    return record;
+    });
   };
 
   // ==================== Render: Trip Records ====================
@@ -992,6 +1218,7 @@
     var records = sortByDateDesc(tripRecords);
     var h = '<div class="page active" id="page-trip">';
     h += '<div class="page-head"><h2>行程</h2><div class="subtitle">Trip Log</div></div>';
+    h += renderTodayTripSummary();
 
     if (records.length === 0) {
       h += '<div class="empty-state"><div class="empty-state-icon">' + icon('route') + '</div><p>还没有行程记录</p><button class="btn btn-primary btn-sm" onclick="window._showTripForm()">新增行程记录</button></div>';
@@ -1046,12 +1273,17 @@
     h += '<div class="modal-body">';
     h += '<div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="trip-date" value="' + (r.date || today()) + '"></div>';
     h += '<div class="form-group"><label class="form-label">行程名称</label><input type="text" class="form-input" id="trip-name" placeholder="例如：去公司、周末出游" value="' + escHtml(r.name || '') + '"></div>';
+    h += '<div class="quick-purpose-group" id="trip-purpose-quick">';
+    ['上班', '回家', '办事', '接送人', '购物', '旅行', '其他'].forEach(function (item) {
+      h += '<button type="button" class="quick-purpose' + (purposeValue === item ? ' active' : '') + '" onclick="window._selectTripPurpose(\'' + item + '\')">' + item + '</button>';
+    });
+    h += '</div>';
     h += '<div class="form-row"><div class="form-group"><label class="form-label">起始里程 (km)</label><input type="number" class="form-input trip-odo" id="trip-start" placeholder="例如 35620" step="0.1" min="0" value="' + (startDefault != null ? startDefault : '') + '" inputmode="decimal"></div>';
     h += '<div class="form-group"><label class="form-label">结束里程 (km)</label><input type="number" class="form-input trip-odo" id="trip-end" placeholder="例如 35648" step="0.1" min="0" value="' + (r.endOdometer != null ? r.endOdometer : '') + '" inputmode="decimal"></div></div>';
     h += '<div class="form-group"><label class="form-label">行驶距离 (km)</label><input type="number" class="form-input" id="trip-distance" placeholder="自动计算" step="0.1" min="0" value="' + (r.distance != null ? r.distance : '') + '" inputmode="decimal" readonly></div>';
     h += '<div class="form-group"><label class="form-label">预估能源费用 (元)</label><input type="number" class="form-input trip-cost-calc" id="trip-cost" placeholder="' + (cpk != null ? '约 ¥' + fmtMoney(cpk) + '/km' : '数据不足，可手动填写') + '" step="0.01" min="0" value="' + (r.estimatedCost != null && r.estimatedCost !== '' ? r.estimatedCost : '') + '" inputmode="decimal"></div>';
     h += '<details class="more-fields"><summary>更多信息</summary>';
-    h += '<div class="form-group"><label class="form-label">用途</label><select class="form-input" id="trip-purpose">' + selectOptions(['', '上班', '商务', '出游', '购物', '接送', '其他'], purposeValue) + '</select></div>';
+    h += '<div class="form-group"><label class="form-label">用途</label><select class="form-input" id="trip-purpose">' + selectOptions(['', '上班', '回家', '办事', '接送人', '购物', '旅行', '商务', '其他'], purposeValue) + '</select></div>';
     h += '<div class="form-group"><label class="form-label">路况</label><select class="form-input" id="trip-road-type">' + selectOptions(['市区', '高速', '郊区', '拥堵', '混合'], roadTypeValue) + '</select></div>';
     h += '<div class="form-row"><label class="form-check"><input type="checkbox" id="trip-highway"' + (r.isHighway ? ' checked' : '') + '><span>包含高速</span></label><label class="form-check"><input type="checkbox" id="trip-ac"' + (r.acUsed ? ' checked' : '') + '><span>开空调</span></label></div>';
     h += '<div class="form-row"><div class="form-group"><label class="form-label">乘坐人数</label><input type="number" class="form-input" id="trip-passengers" step="1" min="0" value="' + (r.passengers != null ? r.passengers : '') + '" inputmode="numeric"></div>';
@@ -1062,14 +1294,12 @@
     h += '</details>';
     h += '<div class="modal-footer">';
     if (editRecord) h += '<button class="btn btn-outline" onclick="window._closeModal()">取消编辑</button>';
-    h += '<button class="btn btn-primary btn-block" onclick="window._saveTrip(\'' + (r.id || '') + '\')">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
+    h += '<button class="btn btn-primary btn-block" onclick="window._saveTrip(\'' + (r.id || '') + '\', this)">' + (editRecord ? '保存修改' : '保存记录') + '</button></div>';
     openModal(h);
-    setTimeout(function () {
-      $$('.trip-odo').forEach(function (inp) { inp.addEventListener('input', autoCalcDistance); });
-      $$('.trip-cost-calc, .trip-extra-cost').forEach(function (inp) { inp.addEventListener('input', autoCalcTripTotal); });
-      autoCalcDistance();
-      autoCalcTripTotal();
-    }, 100);
+    $$('.trip-odo').forEach(function (inp) { inp.addEventListener('input', autoCalcDistance); });
+    $$('.trip-cost-calc, .trip-extra-cost').forEach(function (inp) { inp.addEventListener('input', autoCalcTripTotal); });
+    autoCalcDistance();
+    autoCalcTripTotal();
   }
 
   function autoCalcDistance() {
@@ -1085,6 +1315,16 @@
     }
   }
 
+  window._selectTripPurpose = function (value) {
+    var purpose = $('#trip-purpose');
+    var name = $('#trip-name');
+    if (purpose) purpose.value = value;
+    if (name && !name.value.trim()) name.value = value;
+    $$('.quick-purpose').forEach(function (btn) {
+      btn.classList.toggle('active', btn.textContent === value);
+    });
+  };
+
   function autoCalcTripTotal() {
     var cEl = $('#trip-cost'), pEl = $('#trip-parking'), tEl = $('#trip-toll'), totalEl = $('#trip-total-cost');
     if (!totalEl) return;
@@ -1097,7 +1337,8 @@
     totalEl.value = fmtMoney(cost + parking + toll);
   }
 
-  window._saveTrip = function (editId) {
+  window._saveTrip = async function (editId, button) {
+    return withSavingState(button, function () {
     var date = $('#trip-date').value;
     var name = $('#trip-name').value.trim();
     var startOdo = parseFloat($('#trip-start').value);
@@ -1113,12 +1354,12 @@
     var tollFee = parseFloat($('#trip-toll').value) || 0;
     var totalCost = parseFloat($('#trip-total-cost').value);
     var note = $('#trip-note').value.trim();
-    if (!date) { alert('请选择日期'); return; }
-    if (!name) { alert('请填写行程名称'); return; }
-    if (isNaN(startOdo) || isNaN(endOdo) || startOdo < 0 || endOdo < 0) { alert('起始里程和结束里程必须大于等于 0'); return; }
-    if (endOdo < startOdo) { alert('结束里程不能小于起始里程'); return; }
-    if (isNaN(dist) || dist <= 0) { alert('行驶距离必须大于 0，请填写起止里程'); return; }
-    if (parkingFee < 0 || tollFee < 0) { alert('停车费和过路费不能小于 0'); return; }
+    if (!date) { showToast('请选择日期'); return null; }
+    if (!name) { showToast('请填写行程名称'); return null; }
+    if (isNaN(startOdo) || isNaN(endOdo) || startOdo < 0 || endOdo < 0) { showToast('起始里程和结束里程必须大于等于 0'); return null; }
+    if (endOdo < startOdo) { showToast('结束里程不能小于起始里程'); return null; }
+    if (isNaN(dist) || dist <= 0) { showToast('行驶距离必须大于 0'); return null; }
+    if (parkingFee < 0 || tollFee < 0) { showToast('停车费和过路费不能小于 0'); return null; }
     if (dist > 1000 && !confirm('本次行程距离较长，是否继续保存？')) return;
     totalCost = isNaN(totalCost) ? cost + parkingFee + tollFee : totalCost;
     var record = {
@@ -1144,6 +1385,9 @@
     savePrefs({ purpose: purpose, roadType: roadType });
     updateVehicleOdometerIfNeeded(endOdo);
     closeModal(); refreshCurrentPage();
+    openSaveSummary(buildTripSummary(record));
+    return record;
+    });
   };
 
   // ==================== Render: Statistics ====================
@@ -1248,6 +1492,10 @@
     h += '<div class="settings-btn-row"><button class="btn btn-primary btn-block" onclick="window._saveVehicleSettings()">保存车辆信息</button></div>';
     h += '</div>';
 
+    h += '<div class="settings-section"><h3>记录体验</h3>';
+    h += '<label class="settings-row settings-toggle-row"><span><span class="settings-label">保存后显示总结反馈</span><span class="settings-value">关闭后仅显示简洁提示</span></span><input class="ios-switch" type="checkbox" ' + (getShowSaveSummary() ? 'checked' : '') + ' onchange="window._setShowSaveSummary(this.checked)"></label>';
+    h += '</div>';
+
     // Data info
     h += '<div class="settings-section"><h3>数据概况</h3>';
     h += '<div class="settings-row"><span class="settings-label">加油记录</span><span class="settings-value">' + fuelRecords.length + ' 条</span></div>';
@@ -1296,7 +1544,7 @@
         var writable = await handle.createWritable();
         await writable.write(new Blob([text], { type: 'application/json;charset=utf-8' }));
         await writable.close();
-        alert('JSON 文件已保存。');
+        showToast('JSON 文件已保存');
         return;
       } catch (e) {
         if (e && e.name === 'AbortError') return;
@@ -1305,7 +1553,7 @@
 
     var ok = dataService.downloadExport(filename);
     if (!ok) {
-      alert('文件下载失败，请使用“复制备份文本”。');
+      showToast('文件下载失败，请使用复制备份文本');
       showManualBackupText('自动下载失败，请手动复制下方备份文本。');
     }
   };
@@ -1325,20 +1573,20 @@
         }
       } catch (e) {
         if (e && e.name === 'AbortError') return;
-        alert('文件读取或解析失败，请使用“粘贴备份恢复”，并确认选择的是完整 JSON 文件。');
+        showToast('文件读取或解析失败，请使用粘贴备份恢复');
         return;
       }
     }
 
     var inp = $('#import-file-input');
     if (!inp) {
-      alert('无法打开文件选择器，请使用“粘贴备份恢复”。');
+      showToast('无法打开文件选择器，请使用粘贴备份恢复');
       return;
     }
     try {
       inp.click();
     } catch (e) {
-      alert('无法打开文件选择器，请使用“粘贴备份恢复”。');
+      showToast('无法打开文件选择器，请使用粘贴备份恢复');
     }
   };
 
@@ -1368,7 +1616,7 @@
           title: '车辆能耗备份',
           text: '车辆能耗记录备份'
         }).catch(function () {
-          alert('系统分享不可用，已切换到复制备份文本。');
+          showToast('系统分享不可用，已切换到复制备份文本');
           window._copyBackupText();
         });
         return;
@@ -1378,13 +1626,13 @@
         title: '车辆能耗备份',
         text: jsonText
       }).catch(function () {
-        alert('系统分享不可用，已切换到复制备份文本。');
+        showToast('系统分享不可用，已切换到复制备份文本');
         window._copyBackupText();
       });
       return;
     }
 
-    alert('系统分享不可用，已切换到复制备份文本。');
+    showToast('系统分享不可用，已切换到复制备份文本');
     window._copyBackupText();
   };
 
@@ -1393,7 +1641,7 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text)
         .then(function () {
-          alert('备份文本已复制，可粘贴到微信、备忘录或文件中保存。');
+          showToast('备份文本已复制');
         })
         .catch(function () {
           showManualBackupText('自动复制失败，请手动复制下方备份文本。');
@@ -1431,7 +1679,7 @@
       activeEnergyTab = energyMode === 'electric' ? 'charge' : 'fuel';
       updateEnergyNav();
       closeModal();
-      alert('导入成功！');
+      showToast('导入成功');
       refreshCurrentPage();
     });
   }
@@ -1443,7 +1691,7 @@
       .then(function (data) {
         applyImportedDataWithConfirm(data);
       })
-      .catch(function () { alert('文件读取或解析失败，请使用“粘贴备份恢复”，并确认粘贴的是完整 JSON。'); });
+      .catch(function () { showToast('文件读取或解析失败，请使用粘贴备份恢复'); });
     event.target.value = '';
   };
 
@@ -1484,7 +1732,7 @@
       renderBackupPreview(pendingPasteImportData);
     } catch (e) {
       pendingPasteImportData = null;
-      alert('备份文本格式不正确，请确认粘贴的是完整 JSON。');
+      showToast('备份文本格式不正确');
     }
   };
 
@@ -1495,7 +1743,7 @@
       renderBackupPreview(data);
       applyImportedDataWithConfirm(data);
     } catch (e) {
-      alert('备份文本格式不正确，请确认粘贴的是完整 JSON。');
+      showToast('备份文本格式不正确');
     }
   };
 
@@ -1507,6 +1755,7 @@
     showConfirm('⚠ 确定要清空全部数据吗？\n\n此操作不可撤销，建议先导出备份。', function () {
       applyData(dataService.clearAllData());
       navigateTo('home');
+      showToast('已清空数据');
     });
   };
 
@@ -1541,7 +1790,7 @@
     var modeEl = $('#init-energy-mode');
     var odoEl = $('#init-odometer');
     var odo = parseFloat(odoEl.value);
-    if (isNaN(odo) || odo < 0) { alert('请输入有效的当前总里程'); return; }
+    if (isNaN(odo) || odo < 0) { showToast('请输入有效的当前总里程'); return; }
     saveVehicleProfileFromValues(modeEl.value, odo, false);
     closeModal();
     refreshCurrentPage();
@@ -1556,9 +1805,9 @@
   window._saveVehicleSettings = function () {
     var odoEl = $('#vehicle-odometer');
     var odo = parseFloat(odoEl.value);
-    if (isNaN(odo) || odo < 0) { alert('请输入有效的当前总里程'); return; }
+    if (isNaN(odo) || odo < 0) { showToast('请输入有效的当前总里程'); return; }
     saveVehicleProfileFromValues(energyMode, odo, false);
-    alert('车辆信息已保存');
+    showToast('车辆信息已保存');
     refreshCurrentPage();
   };
 
@@ -1614,7 +1863,7 @@
       var fid = delFuel.dataset.id;
       var fr = fuelRecords.find(function (r) { return r.id === fid; });
       showConfirm('确定要删除 ' + (fr ? fr.date + ' 的加油记录' : '该条加油记录') + ' 吗？', function () {
-        deleteFuelRecord(fid); refreshCurrentPage();
+        deleteFuelRecord(fid); refreshCurrentPage(); showToast('已删除');
       });
       return;
     }
@@ -1632,7 +1881,7 @@
       var cid = delCharge.dataset.id;
       var cr = chargeRecords.find(function (r) { return r.id === cid; });
       showConfirm('确定要删除' + (cr ? cr.date + ' 的充电记录' : '该条充电记录') + ' 吗？', function () {
-        deleteChargeRecord(cid); refreshCurrentPage();
+        deleteChargeRecord(cid); refreshCurrentPage(); showToast('已删除');
       });
       return;
     }
@@ -1650,7 +1899,7 @@
       var tid = delTrip.dataset.id;
       var tr = tripRecords.find(function (r) { return r.id === tid; });
       showConfirm('确定要删除 ' + (tr ? tr.date + ' 的行程记录' : '该条行程记录') + ' 吗？', function () {
-        deleteTripRecord(tid); refreshCurrentPage();
+        deleteTripRecord(tid); refreshCurrentPage(); showToast('已删除');
       });
       return;
     }
@@ -1660,6 +1909,8 @@
   confirmOk.addEventListener('click', function () { if (confirmCallback) confirmCallback(); hideConfirm(); });
   confirmCancel.addEventListener('click', hideConfirm);
   confirmDialog.addEventListener('click', function (e) { if (e.target === confirmDialog) hideConfirm(); });
+  if (summaryDoneBtn) summaryDoneBtn.addEventListener('click', closeSaveSummary);
+  if (saveSummaryOverlay) saveSummaryOverlay.addEventListener('click', function (e) { if (e.target === saveSummaryOverlay) closeSaveSummary(); });
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {

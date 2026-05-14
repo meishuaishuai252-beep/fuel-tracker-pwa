@@ -7,7 +7,8 @@
     chargeRecords: 'chargeRecords',
     energyMode: 'energyMode',
     vehicleProfile: 'vehicleProfile',
-    userPreferences: 'userPreferences'
+    userPreferences: 'userPreferences',
+    showSaveSummary: 'showSaveSummary'
   };
 
   var ENERGY_MODES = ['fuel', 'electric', 'hybrid'];
@@ -93,6 +94,16 @@
 
   function updateUserPreferences(partial) {
     return saveUserPreferences(Object.assign({}, getUserPreferences(), partial || {}));
+  }
+
+  function getShowSaveSummary() {
+    var value = localStorage.getItem(STORAGE_KEYS.showSaveSummary);
+    return value === null ? true : value === 'true';
+  }
+
+  function setShowSaveSummary(enabled) {
+    localStorage.setItem(STORAGE_KEYS.showSaveSummary, String(Boolean(enabled)));
+    return getShowSaveSummary();
   }
 
   function loadData() {
@@ -192,6 +203,7 @@
     normalized.energyMode = normalizeEnergyMode(data.energyMode || 'fuel');
     normalized.vehicleProfile = normalizeVehicleProfile(data.vehicleProfile || { mode: normalized.energyMode });
     normalized.userPreferences = data.userPreferences && typeof data.userPreferences === 'object' && !Array.isArray(data.userPreferences) ? Object.assign({}, data.userPreferences) : {};
+    normalized.showSaveSummary = typeof data.showSaveSummary === 'boolean' ? data.showSaveSummary : getShowSaveSummary();
     return normalized;
   }
 
@@ -200,6 +212,7 @@
     setEnergyMode(normalized.energyMode);
     saveVehicleProfile(normalized.vehicleProfile);
     saveUserPreferences(normalized.userPreferences);
+    setShowSaveSummary(normalized.showSaveSummary);
     return saveData(normalized);
   }
 
@@ -211,6 +224,7 @@
       energyMode: getEnergyMode(),
       vehicleProfile: getVehicleProfile(),
       userPreferences: getUserPreferences(),
+      showSaveSummary: getShowSaveSummary(),
       fuelRecords: data.fuelRecords,
       tripRecords: data.tripRecords,
       chargeRecords: data.chargeRecords
@@ -275,6 +289,8 @@
     getUserPreferences: getUserPreferences,
     saveUserPreferences: saveUserPreferences,
     updateUserPreferences: updateUserPreferences,
+    getShowSaveSummary: getShowSaveSummary,
+    setShowSaveSummary: setShowSaveSummary,
     addFuelRecord: addFuelRecord,
     updateFuelRecord: updateFuelRecord,
     deleteFuelRecord: deleteFuelRecord,
