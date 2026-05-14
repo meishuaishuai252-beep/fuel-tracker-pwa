@@ -86,15 +86,14 @@
     <div class="save-summary-sheet" role="dialog" aria-modal="true" aria-labelledby="summaryTitle">
       <div class="sheet-grabber"></div>
       <div class="summary-icon">✓</div>
-      <h3 id="summaryTitle">记录已保存</h3>
-      <div id="summaryVisual" class="summary-visual hidden"></div>
+      <h3 id="summaryTitle">补能完成</h3>
       <div id="summaryRows" class="summary-rows"></div>
       <p id="summaryHint" class="summary-hint"></p>
-      <button id="summaryDoneBtn" class="btn btn-primary btn-block">完成</button>
+      <button id="summaryDoneBtn" class="summary-done-btn">完成</button>
     </div>
   </div>
 
-  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <div id="appToast" class="app-toast hidden" role="status" aria-live="polite"></div>
 
   <script src="dataService.js"></script>
   <script src="app.js"></script>

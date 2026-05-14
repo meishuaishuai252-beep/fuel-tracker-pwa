@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fuel-tracker-v15';
+const CACHE_NAME = 'fuel-tracker-v16';
 const ASSETS = [
   './',
   './index.html',

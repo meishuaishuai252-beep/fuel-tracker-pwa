@@ -27,11 +27,10 @@
   var confirmCancel = $('#confirm-cancel');
   var saveSummaryOverlay = $('#saveSummaryOverlay');
   var summaryTitle = $('#summaryTitle');
-  var summaryVisual = $('#summaryVisual');
   var summaryRows = $('#summaryRows');
   var summaryHint = $('#summaryHint');
   var summaryDoneBtn = $('#summaryDoneBtn');
-  var toastEl = $('#toast');
+  var toastEl = $('#appToast');
 
   var confirmCallback = null;
   var pendingPasteImportData = null;
@@ -110,13 +109,9 @@
     }
     summaryTitle.textContent = options.title || '记录已保存';
     summaryRows.innerHTML = (options.rows || []).map(function (row) {
-      return '<div class="summary-row"><span>' + escHtml(row.label) + '</span><span>' + escHtml(row.value) + '</span></div>';
+      return '<div class="summary-row"><span class="label">' + escHtml(row.label) + '</span><span class="value">' + escHtml(row.value) + '</span></div>';
     }).join('');
     summaryHint.textContent = options.hint || '';
-    if (summaryVisual) {
-      summaryVisual.innerHTML = options.visual || '';
-      summaryVisual.classList.toggle('hidden', !options.visual);
-    }
     saveSummaryOverlay.classList.remove('hidden');
     clearTimeout(summaryTimer);
     summaryTimer = setTimeout(closeSaveSummary, 5000);
@@ -144,6 +139,16 @@
         button.textContent = oldText;
       }
     }
+  }
+
+  function setButtonSaving(button, saving) {
+    if (!button) return;
+    var text = button.querySelector('.btn-text');
+    var spinner = button.querySelector('.btn-spinner');
+    button.disabled = !!saving;
+    if (text) text.textContent = saving ? '保存中...' : '保存记录';
+    else button.textContent = saving ? '保存中...' : '保存记录';
+    if (spinner) spinner.classList.toggle('hidden', !saving);
   }
 
   // ==================== Nav Pill ====================
@@ -662,7 +667,6 @@
     var range = getFuelRangeEstimate(record.liters);
     return {
       title: '补能完成',
-      visual: '<div class="summary-meter fuel"><span style="width:' + Math.min(100, Math.round((Number(record.liters) || 0) / 60 * 100)) + '%"></span></div>',
       rows: [
         { label: '本次加油', value: fmtFuel(record.liters) + ' L' },
         { label: '花费', value: '¥' + fmtMoney(record.amount) },
@@ -1086,32 +1090,166 @@
     });
   };
 
+  function renderFuelInlineForm() {
+    var odo = getSuggestedOdometer();
+    var fuelType = pref('fuelType', '92#');
+    var station = pref('station', '中石化');
+    var payment = pref('paymentMethod', '微信');
+    var h = '<section class="ios-card energy-form-card">';
+    h += '<div class="ios-form-row"><span class="row-icon">▣</span><span class="row-label">日期</span><input id="fuelDate" class="row-input" type="date" value="' + today() + '"><span class="row-chevron">›</span></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">◴</span><span class="row-label">当前总里程</span><div class="row-value-input"><input id="fuelOdometer" type="number" inputmode="decimal" value="' + (odo || '') + '"><span>km</span></div></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">¥</span><span class="row-label">加油金额</span><div class="row-value-input"><span>¥</span><input id="fuelAmount" type="number" inputmode="decimal"></div></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">' + icon('fuel') + '</span><span class="row-label">加油升数</span><div class="row-value-input"><input id="fuelLiters" type="number" inputmode="decimal"><span>L</span></div></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">⌁</span><span class="row-label">油价</span><div class="row-value-input"><span>¥</span><input id="fuelPrice" type="number" inputmode="decimal"><span>/L</span></div></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">✓</span><span class="row-label">是否加满</span><label class="ios-switch fuel-inline-switch"><input id="fuelFullTank" type="checkbox" checked><span></span></label></div>';
+    h += '<button class="more-row" type="button" id="toggleFuelMore"><span>更多信息</span><span class="more-chevron">⌄</span></button>';
+    h += '<div class="fuel-more-fields hidden" id="fuelMoreFields">';
+    h += '<div class="ios-form-row"><span class="row-icon">95</span><span class="row-label">油品类型</span><select id="fuelType" class="row-input">' + selectOptions(['92#', '95#', '98#', '柴油', '其他'], fuelType) + '</select></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">站</span><span class="row-label">加油站</span><select id="fuelStation" class="row-input">' + selectOptions(['中石化', '中石油', '民营', '其他'], station) + '</select></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">付</span><span class="row-label">支付方式</span><select id="fuelPayment" class="row-input">' + selectOptions(['微信', '支付宝', '现金', '银行卡', '其他'], payment) + '</select></div>';
+    h += '<div class="ios-form-row"><span class="row-icon">…</span><span class="row-label">备注</span><input id="fuelNote" class="row-input" type="text" placeholder="可选"></div>';
+    h += '</div>';
+    h += '<button id="saveFuelBtn" class="primary-save-btn" type="button"><span class="btn-text">保存记录</span><span class="btn-spinner hidden"></span></button>';
+    h += '</section>';
+    return h;
+  }
+
+  function bindInlineFuelForm() {
+    ['fuelAmount', 'fuelLiters', 'fuelPrice'].forEach(function (id) {
+      var el = $('#' + id);
+      if (el) el.addEventListener('input', function () { autoCalcInlineFuel(id); });
+    });
+    var moreBtn = $('#toggleFuelMore');
+    var more = $('#fuelMoreFields');
+    if (moreBtn && more) {
+      moreBtn.addEventListener('click', function () {
+        more.classList.toggle('hidden');
+        moreBtn.classList.toggle('open', !more.classList.contains('hidden'));
+      });
+    }
+    var saveBtn = $('#saveFuelBtn');
+    if (saveBtn) saveBtn.addEventListener('click', handleSaveFuel);
+  }
+
+  function autoCalcInlineFuel(changedId) {
+    var amtEl = $('#fuelAmount'), litEl = $('#fuelLiters'), prcEl = $('#fuelPrice');
+    if (!amtEl || !litEl || !prcEl) return;
+    var amt = parseFloat(amtEl.value), lit = parseFloat(litEl.value), prc = parseFloat(prcEl.value);
+    if (changedId !== 'fuelPrice' && amtEl.value && litEl.value && !isNaN(amt) && !isNaN(lit) && lit > 0) prcEl.value = fmtMoney(amt / lit);
+    else if (changedId !== 'fuelAmount' && litEl.value && prcEl.value && !isNaN(lit) && !isNaN(prc) && prc > 0) amtEl.value = fmtMoney(lit * prc);
+    else if (changedId !== 'fuelLiters' && amtEl.value && prcEl.value && !isNaN(amt) && !isNaN(prc) && prc > 0) litEl.value = fmtFuel(amt / prc);
+  }
+
+  async function handleSaveFuel() {
+    var btn = $('#saveFuelBtn');
+    if (btn && btn.disabled) return;
+    setButtonSaving(btn, true);
+    try {
+      await new Promise(function (resolve) { setTimeout(resolve, 180); });
+      var date = $('#fuelDate').value;
+      var odo = parseFloat($('#fuelOdometer').value);
+      var amt = parseFloat($('#fuelAmount').value) || 0;
+      var lit = parseFloat($('#fuelLiters').value) || 0;
+      var prc = parseFloat($('#fuelPrice').value) || 0;
+      if (!date) { showToast('请选择日期'); return; }
+      if (isNaN(odo) || odo < 0) { showToast('请输入有效的里程数'); return; }
+      if (amt <= 0) { showToast('加油金额必须大于 0'); return; }
+      if (lit <= 0) { showToast('加油升数必须大于 0'); return; }
+      if (prc <= 0) { showToast('油价必须大于 0'); return; }
+      var maxOdo = maxHistoricalOdometer();
+      if (maxOdo != null && odo < maxOdo) {
+        showToast('当前里程小于历史最大值，请检查后再保存');
+        return;
+      }
+      var previousPrice = getPreviousFuelPrice();
+      var record = {
+        id: genId(),
+        date: date,
+        odometer: odo,
+        amount: Number(fmtMoney(amt)),
+        liters: Number(fmtFuel(lit)),
+        pricePerLiter: Number(fmtMoney(prc)),
+        fullTank: $('#fuelFullTank').checked,
+        fuelType: $('#fuelType') ? $('#fuelType').value : '',
+        station: $('#fuelStation') ? $('#fuelStation').value : '',
+        paymentMethod: $('#fuelPayment') ? $('#fuelPayment').value : '',
+        note: $('#fuelNote') ? $('#fuelNote').value.trim() : ''
+      };
+      addFuelRecord(record);
+      savePrefs({ fuelType: record.fuelType, station: record.station, paymentMethod: record.paymentMethod });
+      updateVehicleOdometerIfNeeded(odo);
+      resetInlineFuelForm(record.odometer);
+      renderFuelRecentListIntoPage();
+      openSaveSummary(buildFuelSummary(record, previousPrice));
+    } catch (error) {
+      console.error(error);
+      showToast('保存失败，请检查输入');
+    } finally {
+      setButtonSaving(btn, false);
+    }
+  }
+
+  function resetInlineFuelForm(odometer) {
+    if ($('#fuelDate')) $('#fuelDate').value = today();
+    if ($('#fuelOdometer')) $('#fuelOdometer').value = odometer || getSuggestedOdometer() || '';
+    ['fuelAmount', 'fuelLiters', 'fuelPrice', 'fuelNote'].forEach(function (id) {
+      var el = $('#' + id);
+      if (el) el.value = '';
+    });
+    if ($('#fuelFullTank')) $('#fuelFullTank').checked = true;
+  }
+
+  function renderFuelRecentListIntoPage() {
+    var list = $('#fuelRecordList');
+    if (list) list.innerHTML = renderFuelRecentList();
+  }
+
+  function renderFuelRecentList() {
+    var records = sortByDateDesc(fuelRecords).slice(0, 8);
+    if (!records.length) return '<div class="ios-card recent-empty">还没有加油记录</div>';
+    return records.map(function (r) {
+      return '<article class="fuel-recent-card" data-id="' + r.id + '">' +
+        '<span class="recent-icon">' + icon('fuel') + '</span>' +
+        '<div class="recent-main"><div><strong>' + r.date + '</strong><span>' + (r.time || '') + '</span></div>' +
+        '<p><span>♢ ' + fmtFuel(r.liters) + ' L</span><span>⌁ ¥' + fmtMoney(r.pricePerLiter) + '/L</span><span>◴ ' + fmtDist(r.odometer) + ' km</span></p>' +
+        '<small>' + escHtml([r.station, r.note].filter(Boolean).join(' · ') || r.fuelType || '加油记录') + '</small></div>' +
+        '<strong class="recent-amount">¥' + fmtMoney(r.amount) + '</strong><span class="recent-chevron">›</span>' +
+        '</article>';
+    }).join('');
+  }
+
+  function renderChargeRecentList() {
+    var records = sortByDateDesc(chargeRecords).slice(0, 8);
+    if (!records.length) return '<div class="ios-card recent-empty">还没有充电记录</div>';
+    return records.map(function (r) {
+      return '<article class="fuel-recent-card"><span class="recent-icon">' + icon('charge') + '</span><div class="recent-main"><div><strong>' + r.date + '</strong></div><p><span>' + fmtFuel(r.kwh) + ' kWh</span><span>¥' + fmtMoney(r.pricePerKwh) + '/kWh</span><span>' + fmtDist(r.odometer) + ' km</span></p><small>' + escHtml(r.chargeProvider || r.chargeType || '充电记录') + '</small></div><strong class="recent-amount">¥' + fmtMoney(r.amount) + '</strong><span class="recent-chevron">›</span></article>';
+    }).join('');
+  }
+
   function renderEnergyPage() {
     var mode = energyMode;
     var showing = mode === 'electric' ? 'charge' : activeEnergyTab;
-    if (mode === 'fuel') showing = 'fuel';
     if (mode === 'hybrid' && showing !== 'charge') showing = 'fuel';
-    var records = showing === 'charge' ? sortByDateDesc(chargeRecords) : sortByDateDesc(fuelRecords);
-    var h = '<div class="page active" id="page-fuel">';
-    h += '<div class="page-head"><h2>' + getEnergyPageTitle() + '</h2><div class="subtitle">' + getEnergyPageSubtitle() + '</div></div>';
-    if (mode === 'hybrid') {
-      h += '<div class="energy-segmented"><button class="theme-seg-btn' + (showing === 'fuel' ? ' active' : '') + '" onclick="window._setEnergyTab(\'fuel\')">加油</button><button class="theme-seg-btn' + (showing === 'charge' ? ' active' : '') + '" onclick="window._setEnergyTab(\'charge\')">充电</button></div>';
-    }
-    h += renderEnergySummaryCard(showing);
-    if (records.length === 0) {
-      h += '<div class="empty-state"><div class="empty-state-icon">' + (showing === 'charge' ? icon('charge') : icon('fuel')) + '</div><p>还没有' + (showing === 'charge' ? '充电' : '加油') + '记录</p><button class="btn btn-primary btn-sm" onclick="' + (showing === 'charge' ? 'window._showChargeForm()' : 'window._showFuelForm()') + '">新增' + (showing === 'charge' ? '充电' : '加油') + '记录</button></div>';
-    } else {
-      h += '<div class="record-list">';
-      records.forEach(function (r) { h += showing === 'charge' ? renderChargeItem(r) : renderFuelItem(r); });
-      h += '</div>';
-    }
+    var h = '<section class="page energy-page active" id="energyPage">';
+    h += '<header class="page-header"><div><h1>补能</h1><p>Energy Log</p></div><button class="avatar-btn" type="button" onclick="window._refreshCurrentPage()">U</button></header>';
+    h += '<div class="ios-segmented" id="energySegment">';
+    h += '<button class="segment-option' + (showing === 'fuel' ? ' active' : '') + '" data-energy-tab="fuel" onclick="window._setEnergyTab(\'fuel\')">加油</button>';
+    h += '<button class="segment-option' + (showing === 'charge' ? ' active' : '') + '" data-energy-tab="charge" onclick="window._setEnergyTab(\'charge\')">充电</button>';
     h += '</div>';
-    mainContent.innerHTML = h;
 
-    var fab = document.createElement('button');
-    fab.className = 'fab'; fab.textContent = '+';
-    fab.onclick = function () { showing === 'charge' ? showChargeForm() : showFuelForm(); };
-    document.body.appendChild(fab);
+    if (showing === 'charge') {
+      h += '<section class="ios-card energy-form-card"><div class="ios-empty-panel"><strong>充电记录</strong><span>这次先聚焦加油流程，充电入口保持可切换。</span><button class="primary-save-btn" type="button" onclick="window._showChargeForm()">新增充电记录</button></div></section>';
+      h += '<section class="recent-section"><h2>最近记录</h2><div id="fuelRecordList">' + renderChargeRecentList() + '</div></section>';
+      h += '</section>';
+      mainContent.innerHTML = h;
+      return;
+    }
+
+    h += renderFuelInlineForm();
+    h += '<section class="recent-section"><h2>最近记录</h2><div id="fuelRecordList">' + renderFuelRecentList() + '</div></section>';
+    h += '</section>';
+    mainContent.innerHTML = h;
+    bindInlineFuelForm();
   }
 
   function renderChargeItem(r) {
@@ -1815,6 +1953,7 @@
   function renderPage() {
     var oldFab = document.querySelector('.fab');
     if (oldFab) oldFab.remove();
+    document.body.classList.toggle('energy-screen', currentPage === 'fuel');
     switch (currentPage) {
       case 'home': renderEnergyHome(); break;
       case 'fuel': renderEnergyPage(); break;
